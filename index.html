@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SNOWMAN — Alpine Freeride 3D</title>
+  <meta name="description" content="An exhilarating 3D downhill snowboarding game built with Three.js and Web Audio API. Carve down endless snowy peaks, catch massive air, and dodge mountain obstacles.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Three.js CDN Import Map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- 3D WebGL Canvas Container -->
+  <div id="game-container">
+    <canvas id="webgl-canvas"></canvas>
+  </div>
+
+  <!-- In-Game Heads-Up Display (HUD) -->
+  <div id="hud" class="hud-layer hidden">
+    <!-- Top Stats Bar -->
+    <div class="hud-top-bar">
+      <!-- Distance Metric -->
+      <div class="hud-card distance-card">
+        <span class="hud-label">DISTANCE</span>
+        <div class="hud-value-row">
+          <span id="hud-distance" class="hud-number">0</span>
+          <span class="hud-unit">M</span>
+        </div>
+      </div>
+
+      <!-- Score Metric -->
+      <div class="hud-card score-card">
+        <span class="hud-label">SCORE</span>
+        <div class="hud-value-row">
+          <span id="hud-score" class="hud-number">0</span>
+          <span class="hud-unit">PTS</span>
+        </div>
+      </div>
+
+      <!-- Speed Gauge -->
+      <div class="hud-card speed-card">
+        <div class="speed-header">
+          <span class="hud-label">SPEED</span>
+          <span id="hud-tuck-badge" class="tuck-badge hidden">TUCK BOOST</span>
+        </div>
+        <div class="hud-value-row">
+          <span id="hud-speed" class="hud-number">0</span>
+          <span class="hud-unit">KM/H</span>
+        </div>
+        <div class="speed-bar-track">
+          <div id="speed-bar-fill" class="speed-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Controls / Audio Bar in Top Right -->
+      <div class="hud-actions">
+        <button id="btn-audio-toggle" class="btn-icon" title="Toggle Sound" aria-label="Toggle Sound">
+          <svg id="icon-sound-on" class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <svg id="icon-sound-off" class="svg-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <line x1="23" y1="9" x2="17" y2="15"></line>
+            <line x1="17" y1="9" x2="23" y2="15"></line>
+          </svg>
+        </button>
+        <button id="btn-pause-toggle" class="btn-icon" title="Pause Game (P / Esc)" aria-label="Pause Game">
+          <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Dynamic Notification Toasts (Airtime bonus, Gate clear, etc) -->
+    <div id="hud-toast-container" class="hud-toast-container"></div>
+
+    <!-- Quick Keys Footer Hint -->
+    <div class="hud-footer-hint">
+      <span><kbd>A</kbd><kbd>D</kbd> Carve</span>
+      <span><kbd>W</kbd> Tuck Boost</span>
+      <span><kbd>SPACE</kbd> Jump</span>
+      <span><kbd>P</kbd> Pause</span>
+      <span><kbd>R</kbd> Respawn</span>
+    </div>
+  </div>
+
+  <!-- Main Menu Overlay -->
+  <div id="menu-overlay" class="ui-screen active">
+    <div class="menu-glass-panel">
+      <!-- Frost Crest Header -->
+      <div class="brand-container">
+        <div class="snowflake-badge">❄</div>
+        <h1 class="game-title">SNOWMAN</h1>
+        <p class="game-subtitle">ALPINE FREERIDE DOWNHILL</p>
+      </div>
+
+      <!-- High Score Records Box -->
+      <div class="records-pill">
+        <div class="record-item">
+          <span class="record-label">BEST DISTANCE</span>
+          <span id="menu-best-distance" class="record-value">0 m</span>
+        </div>
+        <div class="record-divider"></div>
+        <div class="record-item">
+          <span class="record-label">BEST SCORE</span>
+          <span id="menu-best-score" class="record-value">0 pts</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="menu-actions">
+        <button id="btn-play" class="btn btn-primary">
+          <span class="btn-glow"></span>
+          <span class="btn-text">RIDE MOUNTAIN</span>
+          <span class="btn-icon-right">➔</span>
+        </button>
+        <button id="btn-how-to-play" class="btn btn-secondary">
+          <span>HOW TO PLAY</span>
+        </button>
+      </div>
+
+      <div class="menu-footer">
+        <span>Use Arrow Keys or WASD • Space to Jump</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- How to Play Modal Overlay -->
+  <div id="how-to-play-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>HOW TO PLAY</h2>
+        <button id="btn-close-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="guide-grid">
+          <div class="guide-card">
+            <div class="guide-keys">
+              <kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd>
+            </div>
+            <h3>Steer & Carve</h3>
+            <p>Carve left and right down the slope. Keep your balance and swerve around pine trees and jagged boulders.</p>
+          </div>
+          <div class="guide-card">
+            <div class="guide-keys">
+              <kbd>W</kbd> or <kbd>↑</kbd>
+            </div>
+            <h3>Aerodynamic Tuck</h3>
+            <p>Crouch down low into a speed tuck to minimize drag, reach blazing speeds, and earn speed multiplier points.</p>
+          </div>
+          <div class="guide-card">
+            <div class="guide-keys">
+              <kbd>SPACE</kbd>
+            </div>
+            <h3>Ollie / Jump</h3>
+            <p>Launch off the snow or kicker ramps into the air. Land cleanly to score massive air-time bonus points!</p>
+          </div>
+          <div class="guide-card">
+            <div class="guide-keys">
+              <kbd>P</kbd> / <kbd>ESC</kbd> &bull; <kbd>R</kbd>
+            </div>
+            <h3>Game Controls</h3>
+            <p>Press <kbd>P</kbd> or <kbd>ESC</kbd> anytime to pause. Press <kbd>R</kbd> to quick-respawn and reset your run.</p>
+          </div>
+        </div>
+
+        <div class="guide-tips">
+          <h4>PRO TIPS</h4>
+          <ul>
+            <li>🎯 <strong>Slalom Gates:</strong> Pass between red and blue flags for +500 bonus points each.</li>
+            <li>🚀 <strong>Snow Kickers:</strong> Hit natural snow ramps at high speed for enormous jump air-time.</li>
+            <li>🌲 <strong>Danger Ahead:</strong> Rocks and trees will cause a wipeout. Watch the slope ahead!</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-modal-got-it" class="btn btn-primary">LET'S RIDE!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pause Screen Overlay -->
+  <div id="pause-overlay" class="ui-screen hidden">
+    <div class="menu-glass-panel">
+      <div class="brand-container">
+        <h2 class="pause-title">GAME PAUSED</h2>
+        <p class="game-subtitle">TAKE A BREATHER ON THE SUMMIT</p>
+      </div>
+
+      <div class="pause-stats">
+        <div class="pause-stat">
+          <span class="pause-stat-label">Current Distance</span>
+          <span id="pause-distance" class="pause-stat-val">0 m</span>
+        </div>
+        <div class="pause-stat">
+          <span class="pause-stat-label">Current Score</span>
+          <span id="pause-score" class="pause-stat-val">0 pts</span>
+        </div>
+      </div>
+
+      <div class="menu-actions">
+        <button id="btn-resume" class="btn btn-primary">
+          <span class="btn-text">RESUME RUN</span>
+        </button>
+        <button id="btn-restart-pause" class="btn btn-secondary">
+          <span>RESTART RUN</span>
+        </button>
+      </div>
+
+      <div class="menu-footer">
+        <span>Press <kbd>P</kbd> or <kbd>ESC</kbd> to resume</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over Screen Overlay -->
+  <div id="gameover-overlay" class="ui-screen hidden">
+    <div class="menu-glass-panel gameover-panel">
+      <!-- Crash Icon / Banner -->
+      <div class="gameover-header">
+        <div class="gameover-icon">💥</div>
+        <h2 class="gameover-title">WIPEOUT!</h2>
+        <p id="gameover-cause" class="gameover-subtitle">Crashed into an obstacle</p>
+      </div>
+
+      <!-- New Record Alert Badge (if achieved) -->
+      <div id="new-record-badge" class="new-record-badge hidden">
+        <span>🏆 NEW PERSONAL RECORD!</span>
+      </div>
+
+      <!-- Run Summary Stats Grid -->
+      <div class="summary-grid">
+        <div class="summary-box">
+          <span class="summary-label">DISTANCE</span>
+          <span id="go-distance" class="summary-number">0</span>
+          <span class="summary-unit">meters</span>
+        </div>
+        <div class="summary-box">
+          <span class="summary-label">FINAL SCORE</span>
+          <span id="go-score" class="summary-number">0</span>
+          <span class="summary-unit">points</span>
+        </div>
+        <div class="summary-box">
+          <span class="summary-label">MAX SPEED</span>
+          <span id="go-speed" class="summary-number">0</span>
+          <span class="summary-unit">km/h</span>
+        </div>
+        <div class="summary-box">
+          <span class="summary-label">AIR TIME</span>
+          <span id="go-airtime" class="summary-number">0.0</span>
+          <span class="summary-unit">seconds</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="menu-actions">
+        <button id="btn-retry" class="btn btn-primary">
+          <span class="btn-glow"></span>
+          <span class="btn-text">TRY AGAIN</span>
+          <span class="btn-icon-right">↻</span>
+        </button>
+        <button id="btn-menu-return" class="btn btn-secondary">
+          <span>MAIN MENU</span>
+        </button>
+      </div>
+
+      <div class="menu-footer">
+        <span>Press <kbd>SPACE</kbd> or <kbd>R</kbd> to quickly restart</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Game Initialization Script -->
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
