@@ -32,6 +32,9 @@ export class Player {
     this.airTime = 0;
     this.totalAirTime = 0;
     this.isCrashed = false;
+    this.isStumbling = false;
+    this.stumbleTimer = 0;
+    this.stumbleDir = 1;
 
     // Visual animation states
     this.carveRoll = 0;
@@ -261,6 +264,8 @@ export class Player {
     this.airTime = 0;
     this.totalAirTime = 0;
     this.isCrashed = false;
+    this.isStumbling = false;
+    this.stumbleTimer = 0;
     this.carveRoll = 0;
     this.tuckProgress = 0;
     this.landingSquat = 0;
@@ -295,6 +300,19 @@ export class Player {
       this.airTime = 0;
       this.sound.playJump();
     }
+  }
+
+  /**
+   * Triggers a glancing stumble recovery animation
+   */
+  stumble(dir = 1) {
+    if (this.isCrashed || this.isStumbling) return;
+    this.isStumbling = true;
+    this.stumbleTimer = 0.45;
+    this.stumbleDir = dir;
+    this.velocity.z = Math.max(6, this.velocity.z * 0.82); // speed check
+    this.lateralVelocity += dir * 5.0; // push outward
+    this.sound.playStumble();
   }
 
   /**
@@ -437,16 +455,31 @@ export class Player {
     const slopePitch = Math.atan(this.terrain.SLOPE_GRADE);
     this.boardGroup.rotation.x = slopePitch;
     this.boardGroup.rotation.z = this.carveRoll;
-    this.boardGroup.rotation.y = (-this.lateralVelocity / this.turnSpeed) * 0.35;
+    // Handle Stumble recovery timer
+    if (this.isStumbling) {
+      this.stumbleTimer -= delta;
+      if (this.stumbleTimer <= 0) {
+        this.isStumbling = false;
+      }
+    }
 
-    // Animate Torso posture (Tuck & Carve Lean)
+    // Animate Torso posture (Tuck, Carve Lean & Stumble)
     const baseTorsoY = 0.78 - (this.tuckProgress * 0.28) - this.landingSquat;
     this.torsoGroup.position.y = baseTorsoY;
-    this.torsoGroup.rotation.x = this.tuckProgress * 0.55; // Lean forward in tuck
-    this.torsoGroup.rotation.z = -this.carveRoll * 0.45; // Lean into turn
+    if (this.isStumbling) {
+      this.torsoGroup.rotation.x = -0.3; // Lean back to regain balance
+      this.torsoGroup.rotation.z = -this.stumbleDir * 0.35;
+    } else {
+      this.torsoGroup.rotation.x = this.tuckProgress * 0.55; // Lean forward in tuck
+      this.torsoGroup.rotation.z = -this.carveRoll * 0.45; // Lean into turn
+    }
 
-    // Animate Arms (tuck in when aerodynamic, flare out when airborne)
-    if (this.isTucking) {
+    // Animate Arms (tuck in when aerodynamic, flare out when airborne, windmill when stumbling)
+    if (this.isStumbling) {
+      const flail = Math.sin(Date.now() * 0.035) * 0.8;
+      this.leftArmGroup.rotation.z = 0.5 + flail;
+      this.rightArmGroup.rotation.z = -0.5 - flail;
+    } else if (this.isTucking) {
       this.leftArmGroup.rotation.z = -0.3;
       this.rightArmGroup.rotation.z = 0.3;
     } else if (!this.isGrounded) {

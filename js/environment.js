@@ -23,6 +23,7 @@ export class Environment {
     this.initDistantMountains();
     this.initFallingSnow();
     this.initSnowSprayPool();
+    this.initCoinSparklesPool();
     this.initSpeedLines();
   }
 
@@ -256,6 +257,108 @@ export class Environment {
   }
 
   /**
+   * Initializes zero-allocation particle pool for coin sparkle effects
+   */
+  initCoinSparklesPool() {
+    this.maxSparkles = 90;
+    this.sparkleIndex = 0;
+
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(this.maxSparkles * 3);
+    const colors = new Float32Array(this.maxSparkles * 3);
+    const sizes = new Float32Array(this.maxSparkles);
+
+    for (let i = 0; i < this.maxSparkles; i++) {
+      positions[i * 3 + 1] = -9999;
+      colors[i * 3] = 1.0;
+      colors[i * 3 + 1] = 0.85;
+      colors[i * 3 + 2] = 0.2;
+      sizes[i] = 0;
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    const material = new THREE.PointsMaterial({
+      size: 1.8,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    this.sparklesMesh = new THREE.Points(geometry, material);
+    this.scene.add(this.sparklesMesh);
+
+    this.sparklesPool = [];
+    for (let i = 0; i < this.maxSparkles; i++) {
+      this.sparklesPool.push({
+        active: false,
+        x: 0, y: -9999, z: 0,
+        vx: 0, vy: 0, vz: 0,
+        life: 0,
+        maxLife: 0.55,
+        size: 1.8
+      });
+    }
+  }
+
+  /**
+   * Emits golden sparkle explosion upon collecting a coin
+   */
+  emitCoinSparkles(pos) {
+    const count = 14;
+    for (let i = 0; i < count; i++) {
+      const p = this.sparklesPool[this.sparkleIndex];
+      p.active = true;
+      p.life = 0;
+      p.maxLife = 0.45 + Math.random() * 0.3;
+      p.x = pos.x;
+      p.y = pos.y + 0.5;
+      p.z = pos.z;
+
+      // Radial burst outwards
+      const theta = Math.random() * Math.PI * 2;
+      const phi = (Math.random() - 0.5) * Math.PI;
+      const speed = 3.5 + Math.random() * 5.5;
+
+      p.vx = Math.cos(phi) * Math.cos(theta) * speed;
+      p.vy = Math.sin(phi) * speed + 2.5; // upward bias
+      p.vz = Math.cos(phi) * Math.sin(theta) * speed;
+      p.size = 1.6 + Math.random() * 1.6;
+
+      this.sparkleIndex = (this.sparkleIndex + 1) % this.maxSparkles;
+    }
+  }
+
+  /**
+   * Emits a violent snow blast when crashing into an obstacle
+   */
+  emitCrashBlast(pos) {
+    const count = 28;
+    for (let i = 0; i < count; i++) {
+      const p = this.sprayPool[this.sprayIndex];
+      p.active = true;
+      p.life = 0;
+      p.maxLife = 0.6 + Math.random() * 0.4;
+      p.x = pos.x + (Math.random() - 0.5) * 0.6;
+      p.y = pos.y + 0.3 + Math.random() * 0.8;
+      p.z = pos.z + (Math.random() - 0.5) * 0.6;
+
+      const angle = Math.random() * Math.PI * 2;
+      const blastSpeed = 5.0 + Math.random() * 8.0;
+      p.vx = Math.cos(angle) * blastSpeed;
+      p.vy = 4.0 + Math.random() * 6.0;
+      p.vz = Math.sin(angle) * blastSpeed;
+      p.size = 2.0 + Math.random() * 2.2;
+
+      this.sprayIndex = (this.sprayIndex + 1) % this.maxSprayParticles;
+    }
+  }
+
+  /**
    * Speed lines system for high speed sensation
    */
   initSpeedLines() {
@@ -390,6 +493,44 @@ export class Environment {
             // Fade size as particle disperses
             const lifeRatio = 1 - (p.life / p.maxLife);
             sizes[i] = p.size * lifeRatio;
+          }
+        }
+      }
+      posAttr.needsUpdate = true;
+      sizeAttr.needsUpdate = true;
+    }
+
+    // 4b. Update Coin Sparkles Particles
+    if (this.sparklesMesh) {
+      const posAttr = this.sparklesMesh.geometry.attributes.position;
+      const sizeAttr = this.sparklesMesh.geometry.attributes.size;
+      const positions = posAttr.array;
+      const sizes = sizeAttr.array;
+
+      for (let i = 0; i < this.maxSparkles; i++) {
+        const p = this.sparklesPool[i];
+        if (p.active) {
+          p.life += delta;
+          if (p.life >= p.maxLife) {
+            p.active = false;
+            positions[i * 3 + 1] = -9999;
+            sizes[i] = 0;
+          } else {
+            p.vy -= 9.8 * delta; // slight gravity pull
+            p.vx *= 0.96;
+            p.vz *= 0.96;
+
+            p.x += p.vx * delta;
+            p.y += p.vy * delta;
+            p.z += p.vz * delta;
+
+            positions[i * 3] = p.x;
+            positions[i * 3 + 1] = p.y;
+            positions[i * 3 + 2] = p.z;
+
+            // Sparkle twinkle
+            const lifeRatio = 1 - (p.life / p.maxLife);
+            sizes[i] = p.size * lifeRatio * (0.8 + Math.sin(p.life * 25) * 0.2);
           }
         }
       }

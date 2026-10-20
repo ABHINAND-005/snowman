@@ -1,7 +1,7 @@
 /**
  * UI Manager for SNOWMAN
  * Controls Heads-Up Display (HUD), Main Menu, How To Play Modal, Pause Overlay,
- * Game Over Screen, High Score persistence, and notification toasts.
+ * Game Over Screen, High Score & Coin Bank persistence, and notification toasts.
  */
 
 export class UIManager {
@@ -12,10 +12,12 @@ export class UIManager {
     this.hud = document.getElementById('hud');
     this.hudDistance = document.getElementById('hud-distance');
     this.hudScore = document.getElementById('hud-score');
+    this.hudCoins = document.getElementById('hud-coins');
     this.hudSpeed = document.getElementById('hud-speed');
     this.speedBarFill = document.getElementById('speed-bar-fill');
     this.tuckBadge = document.getElementById('hud-tuck-badge');
     this.toastContainer = document.getElementById('hud-toast-container');
+    this.coinCard = document.querySelector('.coin-card');
 
     // Audio & Pause HUD icons
     this.btnAudioToggle = document.getElementById('btn-audio-toggle');
@@ -32,21 +34,27 @@ export class UIManager {
     // Menu records
     this.menuBestDistance = document.getElementById('menu-best-distance');
     this.menuBestScore = document.getElementById('menu-best-score');
+    this.menuTotalCoins = document.getElementById('menu-total-coins');
 
     // Pause elements
     this.pauseDistance = document.getElementById('pause-distance');
     this.pauseScore = document.getElementById('pause-score');
+    this.pauseCoins = document.getElementById('pause-coins');
 
     // Game Over elements
     this.goDistance = document.getElementById('go-distance');
     this.goScore = document.getElementById('go-score');
+    this.goCoins = document.getElementById('go-coins');
     this.goSpeed = document.getElementById('go-speed');
     this.goAirtime = document.getElementById('go-airtime');
+    this.goTotalCoins = document.getElementById('go-total-coins');
     this.newRecordBadge = document.getElementById('new-record-badge');
+    this.gameoverCause = document.getElementById('gameover-cause');
 
-    // Load High Scores from LocalStorage
+    // Load High Scores & Coin Bank from LocalStorage
     this.bestDistance = 0;
     this.bestScore = 0;
+    this.totalCoins = 0;
     this.loadHighScores();
 
     // Setup Audio Icon
@@ -59,18 +67,23 @@ export class UIManager {
     window.addEventListener('snowman_gatebonus', (e) => {
       this.showToast(`🎯 SLALOM GATE +${e.detail.bonus}!`);
     });
+    window.addEventListener('snowman_coincombo', (e) => {
+      this.showToast(`🪙 COIN COMBO +${e.detail.bonus}!`);
+    });
   }
 
   /**
-   * Loads persistent records from LocalStorage
+   * Loads persistent records and coin bank from LocalStorage
    */
   loadHighScores() {
     try {
       this.bestDistance = parseInt(localStorage.getItem('snowman_best_dist') || '0', 10);
       this.bestScore = parseInt(localStorage.getItem('snowman_best_score') || '0', 10);
+      this.totalCoins = parseInt(localStorage.getItem('snowman_total_coins') || '0', 10);
     } catch {
       this.bestDistance = 0;
       this.bestScore = 0;
+      this.totalCoins = 0;
     }
     this.updateMenuRecords();
   }
@@ -81,6 +94,18 @@ export class UIManager {
   updateMenuRecords() {
     if (this.menuBestDistance) this.menuBestDistance.textContent = `${this.bestDistance.toLocaleString()} m`;
     if (this.menuBestScore) this.menuBestScore.textContent = `${this.bestScore.toLocaleString()} pts`;
+    if (this.menuTotalCoins) this.menuTotalCoins.textContent = `🪙 ${this.totalCoins.toLocaleString()}`;
+  }
+
+  /**
+   * Trigger pulse visual animation on coin card when collecting coins
+   */
+  pulseCoinCard() {
+    if (!this.coinCard) return;
+    this.coinCard.classList.remove('pulse');
+    // Force reflow
+    void this.coinCard.offsetWidth;
+    this.coinCard.classList.add('pulse');
   }
 
   /**
@@ -101,9 +126,10 @@ export class UIManager {
   /**
    * Updates HUD telemetry during active gameplay
    */
-  updateHUD(distance, score, speedKmH, isTucking) {
+  updateHUD(distance, score, speedKmH, isTucking, coins = 0) {
     if (this.hudDistance) this.hudDistance.textContent = Math.floor(distance).toLocaleString();
     if (this.hudScore) this.hudScore.textContent = Math.floor(score).toLocaleString();
+    if (this.hudCoins) this.hudCoins.textContent = coins.toLocaleString();
     if (this.hudSpeed) this.hudSpeed.textContent = speedKmH;
 
     // Speed bar fill (0 to 110 km/h)
@@ -148,11 +174,12 @@ export class UIManager {
   /**
    * Screen transition: Show Pause Overlay
    */
-  showPause(distance, score) {
+  showPause(distance, score, coins = 0) {
     this.pauseOverlay.classList.remove('hidden');
     this.hud.classList.remove('hidden');
     if (this.pauseDistance) this.pauseDistance.textContent = `${Math.floor(distance).toLocaleString()} m`;
     if (this.pauseScore) this.pauseScore.textContent = `${Math.floor(score).toLocaleString()} pts`;
+    if (this.pauseCoins) this.pauseCoins.textContent = `🪙 ${coins.toLocaleString()}`;
   }
 
   /**
@@ -171,13 +198,21 @@ export class UIManager {
 
     const dist = Math.floor(stats.distance);
     const score = Math.floor(stats.score);
+    const coins = stats.coins || 0;
     const maxSpeed = stats.maxSpeed;
     const airtime = stats.airtime.toFixed(1);
+    const cause = stats.cause ? `Wiped out by a ${stats.cause}` : 'Crashed into an obstacle';
 
     if (this.goDistance) this.goDistance.textContent = dist.toLocaleString();
     if (this.goScore) this.goScore.textContent = score.toLocaleString();
+    if (this.goCoins) this.goCoins.textContent = coins.toLocaleString();
     if (this.goSpeed) this.goSpeed.textContent = maxSpeed;
     if (this.goAirtime) this.goAirtime.textContent = airtime;
+    if (this.gameoverCause) this.gameoverCause.textContent = cause;
+
+    // Add collected coins to total bank
+    this.totalCoins += coins;
+    if (this.goTotalCoins) this.goTotalCoins.textContent = `🪙 ${this.totalCoins.toLocaleString()}`;
 
     // Check if new personal record
     let isNewRecord = false;
@@ -190,13 +225,17 @@ export class UIManager {
       isNewRecord = true;
     }
 
-    if (isNewRecord) {
-      try {
+    try {
+      if (isNewRecord) {
         localStorage.setItem('snowman_best_dist', this.bestDistance.toString());
         localStorage.setItem('snowman_best_score', this.bestScore.toString());
-      } catch {
-        // storage disabled
       }
+      localStorage.setItem('snowman_total_coins', this.totalCoins.toString());
+    } catch {
+      // storage disabled
+    }
+
+    if (isNewRecord) {
       this.newRecordBadge.classList.remove('hidden');
     } else {
       this.newRecordBadge.classList.add('hidden');

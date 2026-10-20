@@ -26,6 +26,9 @@ class Game {
     // Game Metrics & Scoring
     this.distance = 0;
     this.score = 0;
+    this.coins = 0;
+    this.coinsCombo = 0;
+    this.lastCoinTime = 0;
     this.maxSpeed = 0;
     this.scoreMultiplier = 1.0;
 
@@ -245,6 +248,9 @@ class Game {
     this.state = GameState.PLAYING;
     this.distance = 0;
     this.score = 0;
+    this.coins = 0;
+    this.coinsCombo = 0;
+    this.lastCoinTime = 0;
     this.maxSpeed = 0;
     this.cameraShake = 0;
 
@@ -266,7 +272,7 @@ class Game {
     if (this.state === GameState.PLAYING) {
       this.state = GameState.PAUSED;
       this.sound.silenceLoops();
-      this.ui.showPause(this.distance, this.score);
+      this.ui.showPause(this.distance, this.score, this.coins);
     } else if (this.state === GameState.PAUSED) {
       this.state = GameState.PLAYING;
       this.ui.hidePause();
@@ -287,13 +293,14 @@ class Game {
   }
 
   /**
-   * Handles player wipeout
+   * Handles player wipeout with snow blast and camera shake
    */
-  handleCrash(obstacle) {
+  handleCrash(obstacle, cause = 'obstacle') {
     if (this.state !== GameState.PLAYING) return;
 
     this.player.crash();
-    this.cameraShake = 1.4;
+    this.cameraShake = 1.8;
+    this.environment.emitCrashBlast(this.player.position);
 
     // Short delay to watch the wipeout animation before displaying Game Over screen
     setTimeout(() => {
@@ -302,8 +309,10 @@ class Game {
         this.ui.showGameOver({
           distance: this.distance,
           score: this.score,
+          coins: this.coins,
           maxSpeed: this.maxSpeed,
-          airtime: this.player.totalAirTime
+          airtime: this.player.totalAirTime,
+          cause
         });
       }
     }, 1100);
@@ -401,7 +410,7 @@ class Game {
       this.score += delta * 18 * speedBonus * tuckMultiplier;
 
       // Update HUD telemetry
-      this.ui.updateHUD(this.distance, this.score, speedKmH, this.player.isTucking);
+      this.ui.updateHUD(this.distance, this.score, speedKmH, this.player.isTucking, this.coins);
 
       // Emit snow spray particles when carving or sliding
       if (this.player.isGrounded) {
@@ -415,11 +424,37 @@ class Game {
         }
       }
 
-      // 3. Collision Detection with obstacles
+      // 3. Coin Collection Check
+      const coinHit = this.terrain.checkCoinCollisions(this.player.position, 1.4);
+      if (coinHit.collected) {
+        this.coins += coinHit.coins;
+        this.score += coinHit.points;
+        this.sound.playCoinCollect();
+        this.environment.emitCoinSparkles(coinHit.position);
+        this.ui.pulseCoinCard();
+
+        // Rhythmic coin combo bonus
+        const now = performance.now();
+        if (now - this.lastCoinTime < 1800) {
+          this.coinsCombo++;
+          if (this.coinsCombo % 5 === 0) {
+            const comboBonus = this.coinsCombo * 20;
+            this.score += comboBonus;
+            window.dispatchEvent(new CustomEvent('snowman_coincombo', {
+              detail: { bonus: comboBonus }
+            }));
+          }
+        } else {
+          this.coinsCombo = 1;
+        }
+        this.lastCoinTime = now;
+      }
+
+      // 4. Collision Detection with obstacles
       const collision = this.terrain.checkCollisions(this.player.position, 0.55);
       if (collision.hit) {
         if (collision.type === 'crash') {
-          this.handleCrash(collision.obstacle);
+          this.handleCrash(collision.obstacle, collision.cause);
         } else if (collision.type === 'ramp') {
           // Launch rider off snow kicker ramp
           this.player.isGrounded = false;
@@ -436,10 +471,10 @@ class Game {
       }
     }
 
-    // 4. Update Infinite Terrain Chunks (Recycling)
-    this.terrain.update(this.player.position.z);
+    // 5. Update Infinite Terrain Chunks, Obstacles & Coins (Recycling)
+    this.terrain.update(delta, this.player.position.z);
 
-    // 5. Update Atmospheric Environment (Snowflakes, Sun, Mountain Silhouettes)
+    // 6. Update Atmospheric Environment (Snowflakes, Sun, Mountain Silhouettes)
     this.environment.update(
       delta,
       this.player.position,

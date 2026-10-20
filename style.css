@@ -345,6 +345,46 @@ kbd {
   padding: 12px 20px;
   min-width: 140px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+/* Coin Card Accent */
+.coin-card {
+  border-color: rgba(255, 209, 102, 0.35);
+  box-shadow: 0 8px 24px rgba(255, 209, 102, 0.15);
+}
+
+.coin-card.pulse {
+  animation: coinPulse 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border-color: var(--gold-accent);
+}
+
+@keyframes coinPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); box-shadow: 0 0 20px rgba(255, 209, 102, 0.6); }
+  100% { transform: scale(1); }
+}
+
+.coin-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(255, 209, 102, 0.6));
+  display: inline-block;
+  animation: floatCoin 2.5s ease-in-out infinite;
+}
+
+@keyframes floatCoin {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.gold-text {
+  color: var(--gold-accent) !important;
+}
+
+.gold-glow {
+  color: var(--gold-accent) !important;
+  text-shadow: 0 0 12px rgba(255, 209, 102, 0.6) !important;
 }
 
 .hud-label {
@@ -610,7 +650,7 @@ kbd {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-bottom: 28px;
 }

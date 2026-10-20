@@ -48,6 +48,16 @@
         </div>
       </div>
 
+      <!-- Coin Metric -->
+      <div class="hud-card coin-card">
+        <span class="hud-label">COINS</span>
+        <div class="hud-value-row">
+          <span class="coin-icon">🪙</span>
+          <span id="hud-coins" class="hud-number">0</span>
+          <span class="hud-unit gold-text">+10</span>
+        </div>
+      </div>
+
       <!-- Speed Gauge -->
       <div class="hud-card speed-card">
         <div class="speed-header">
@@ -119,6 +129,11 @@
           <span class="record-label">BEST SCORE</span>
           <span id="menu-best-score" class="record-value">0 pts</span>
         </div>
+        <div class="record-divider"></div>
+        <div class="record-item">
+          <span class="record-label">TOTAL COINS</span>
+          <span id="menu-total-coins" class="record-value gold-glow">🪙 0</span>
+        </div>
       </div>
 
       <!-- Action Buttons -->
@@ -181,9 +196,10 @@
         <div class="guide-tips">
           <h4>PRO TIPS</h4>
           <ul>
+            <li>🪙 <strong>Gold Coins:</strong> Gather glowing coin lines & arcs for +10 coins and +50 points each.</li>
             <li>🎯 <strong>Slalom Gates:</strong> Pass between red and blue flags for +500 bonus points each.</li>
             <li>🚀 <strong>Snow Kickers:</strong> Hit natural snow ramps at high speed for enormous jump air-time.</li>
-            <li>🌲 <strong>Danger Ahead:</strong> Rocks and trees will cause a wipeout. Watch the slope ahead!</li>
+            <li>🌲 <strong>Danger Ahead:</strong> Watch out for pine trees, boulders, fallen logs, ice blocks, and snowmen!</li>
           </ul>
         </div>
       </div>
@@ -203,12 +219,16 @@
 
       <div class="pause-stats">
         <div class="pause-stat">
-          <span class="pause-stat-label">Current Distance</span>
+          <span class="pause-stat-label">Distance</span>
           <span id="pause-distance" class="pause-stat-val">0 m</span>
         </div>
         <div class="pause-stat">
-          <span class="pause-stat-label">Current Score</span>
+          <span class="pause-stat-label">Score</span>
           <span id="pause-score" class="pause-stat-val">0 pts</span>
+        </div>
+        <div class="pause-stat">
+          <span class="pause-stat-label">Coins</span>
+          <span id="pause-coins" class="pause-stat-val gold-text">🪙 0</span>
         </div>
       </div>
 
@@ -255,6 +275,11 @@
           <span class="summary-unit">points</span>
         </div>
         <div class="summary-box">
+          <span class="summary-label">COINS COLLECTED</span>
+          <span id="go-coins" class="summary-number gold-text">0</span>
+          <span class="summary-unit">coins (+0 pts)</span>
+        </div>
+        <div class="summary-box">
           <span class="summary-label">MAX SPEED</span>
           <span id="go-speed" class="summary-number">0</span>
           <span class="summary-unit">km/h</span>
@@ -263,6 +288,11 @@
           <span class="summary-label">AIR TIME</span>
           <span id="go-airtime" class="summary-number">0.0</span>
           <span class="summary-unit">seconds</span>
+        </div>
+        <div class="summary-box">
+          <span class="summary-label">TOTAL BANK</span>
+          <span id="go-total-coins" class="summary-number gold-text">🪙 0</span>
+          <span class="summary-unit">all-time coins</span>
         </div>
       </div>
 

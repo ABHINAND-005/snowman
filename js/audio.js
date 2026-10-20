@@ -266,6 +266,57 @@ export class SoundEngine {
   }
 
   /**
+   * Sound effect: Golden coin collection sparkle chime
+   */
+  playCoinCollect() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // Harmonious two-tone chime (B5 -> E6)
+    const tones = [987.77, 1318.51];
+    tones.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.055);
+
+      gain.gain.setValueAtTime(0.24, t + idx * 0.055);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.055 + 0.28);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t + idx * 0.055);
+      osc.stop(t + idx * 0.055 + 0.28);
+    });
+  }
+
+  /**
+   * Sound effect: Glancing obstacle stumble / recovery scrape
+   */
+  playStumble() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(60, t + 0.15);
+
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.15);
+  }
+
+  /**
    * Sound effect: Slalom gate clear bonus chime
    */
   playGateBonus() {
