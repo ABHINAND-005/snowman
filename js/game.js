@@ -62,7 +62,10 @@ class Game {
       left: false,
       right: false,
       tuck: false,
-      jump: false
+      jump: false,
+      spinLeft: false,
+      spinRight: false,
+      grab: false
     };
 
     // Instantiate Subsystems
@@ -70,7 +73,7 @@ class Game {
     this.ui = new UIManager(this.sound);
     this.environment = new Environment(this.scene);
     this.terrain = new Terrain(this.scene);
-    this.player = new Player(this.scene, this.terrain, this.sound);
+    this.player = new Player(this.scene, this.terrain, this.sound, this.environment);
 
     // Bind event listeners
     this.initEventListeners();
@@ -112,6 +115,15 @@ class Game {
       } else if (e.code === 'KeyW' || e.code === 'ArrowUp') {
         this.keys.tuck = true;
         e.preventDefault();
+      } else if (e.code === 'KeyQ') {
+        this.keys.spinLeft = true;
+        e.preventDefault();
+      } else if (e.code === 'KeyE') {
+        this.keys.spinRight = true;
+        e.preventDefault();
+      } else if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+        this.keys.grab = true;
+        e.preventDefault();
       } else if (e.code === 'Space') {
         this.keys.jump = true;
         if (this.state === GameState.GAMEOVER) {
@@ -130,7 +142,15 @@ class Game {
         e.preventDefault();
       }
 
-      this.player.setInputs(this.keys.left, this.keys.right, this.keys.tuck, this.keys.jump);
+      this.player.setInputs(
+        this.keys.left,
+        this.keys.right,
+        this.keys.tuck,
+        this.keys.jump,
+        this.keys.spinLeft,
+        this.keys.spinRight,
+        this.keys.grab
+      );
     });
 
     window.addEventListener('keyup', (e) => {
@@ -140,15 +160,35 @@ class Game {
         this.keys.right = false;
       } else if (e.code === 'KeyW' || e.code === 'ArrowUp') {
         this.keys.tuck = false;
+      } else if (e.code === 'KeyQ') {
+        this.keys.spinLeft = false;
+      } else if (e.code === 'KeyE') {
+        this.keys.spinRight = false;
+      } else if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+        this.keys.grab = false;
       } else if (e.code === 'Space') {
         this.keys.jump = false;
       }
-      this.player.setInputs(this.keys.left, this.keys.right, this.keys.tuck, this.keys.jump);
+      this.player.setInputs(
+        this.keys.left,
+        this.keys.right,
+        this.keys.tuck,
+        this.keys.jump,
+        this.keys.spinLeft,
+        this.keys.spinRight,
+        this.keys.grab
+      );
     });
 
-    // Listen for custom scoring events from player jump landings
+    // Listen for custom scoring events from player jump landings & tricks
     window.addEventListener('snowman_airbonus', (e) => {
       this.score += e.detail.bonus;
+    });
+    window.addEventListener('snowman_trick', (e) => {
+      this.score += e.detail.score;
+    });
+    window.addEventListener('snowman_badlanding', (e) => {
+      this.handleCrash(null, e.detail.cause || 'bad landing');
     });
   }
 
@@ -459,6 +499,19 @@ class Game {
       this.ui.updateNitro(this.player.isNitro, this.player.nitroTimer, 4.0);
       this.ui.updateShield(this.player.isInvulnerable);
 
+      // Real-time air trick HUD telemetry (air time, spin angle, grab type)
+      const spinDeg = Math.floor(Math.abs(this.player.spinAngle) * (180 / Math.PI));
+      const grabType = this.player.isGrabbing
+        ? (this.player.highestSpinMilestone > 0 ? 'METHOD' : 'INDY')
+        : null;
+      this.ui.updateAirTrickHUD(
+        this.player.isGrounded,
+        this.player.airTime,
+        spinDeg,
+        this.player.isGrabbing,
+        grabType
+      );
+
       // Emit snow spray particles when carving or sliding
       if (this.player.isGrounded) {
         const lateralSpeed = Math.abs(this.player.lateralVelocity);
@@ -536,9 +589,7 @@ class Game {
           }
         } else if (collision.type === 'ramp') {
           // Launch rider off snow kicker ramp
-          this.player.isGrounded = false;
-          this.player.verticalVelocity = collision.boostVy;
-          this.sound.playJump();
+          this.player.launchRamp(collision.boostVy);
         } else if (collision.type === 'gate') {
           // Slalom gate bonus
           this.score += 500;

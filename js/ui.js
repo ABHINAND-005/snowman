@@ -25,6 +25,12 @@ export class UIManager {
     this.nitroBarFill = document.getElementById('nitro-bar-fill');
     this.shieldBadge = document.getElementById('hud-shield-badge');
 
+    // Aerial Trick Meter elements
+    this.trickMeter = document.getElementById('hud-trick-meter');
+    this.trickAirStatus = document.getElementById('hud-trick-status');
+    this.trickSpinTag = document.getElementById('hud-trick-spin');
+    this.trickGrabTag = document.getElementById('hud-trick-grab');
+
     // Checkpoint Respawn buttons
     this.btnRestartCheckpoint = document.getElementById('btn-restart-checkpoint');
     this.btnCheckpointRespawn = document.getElementById('btn-checkpoint-respawn');
@@ -86,6 +92,12 @@ export class UIManager {
     window.addEventListener('snowman_nitro', () => {
       this.showToast('🚀 NITRO BOOST ENGAGED!');
     });
+    window.addEventListener('snowman_trick', (e) => {
+      this.showTrickBanner(e.detail.trickName, e.detail.score);
+    });
+    window.addEventListener('snowman_badlanding', (e) => {
+      this.showToast(`💥 FAILED LANDING! ${e.detail.cause.toUpperCase()}`);
+    });
   }
 
   /**
@@ -137,6 +149,21 @@ export class UIManager {
     setTimeout(() => {
       if (toast.parentNode) toast.parentNode.removeChild(toast);
     }, 1800);
+  }
+
+  /**
+   * Shows an animated aerial trick banner with points reward
+   */
+  showTrickBanner(trickName, points) {
+    if (!this.toastContainer) return;
+    const banner = document.createElement('div');
+    banner.className = 'hud-trick-toast';
+    banner.innerHTML = `<span>✨ ${trickName}</span> <span class="trick-points-badge">+${points.toLocaleString()} PTS</span>`;
+    this.toastContainer.appendChild(banner);
+
+    setTimeout(() => {
+      if (banner.parentNode) banner.parentNode.removeChild(banner);
+    }, 2200);
   }
 
   /**
@@ -212,6 +239,37 @@ export class UIManager {
       } else {
         this.btnCheckpointRespawn.classList.add('hidden');
       }
+    }
+  }
+
+  /**
+   * Updates real-time in-air trick telemetry (airtime, active spin, grab)
+   */
+  updateAirTrickHUD(isGrounded, airTime, spinDeg, isGrabbing, grabType) {
+    if (!this.trickMeter) return;
+    if (!isGrounded && airTime > 0.12) {
+      this.trickMeter.classList.remove('hidden');
+      if (this.trickAirStatus) {
+        this.trickAirStatus.textContent = `AIR ${airTime.toFixed(1)}s`;
+      }
+      if (this.trickSpinTag) {
+        if (spinDeg >= 90) {
+          this.trickSpinTag.classList.remove('hidden');
+          this.trickSpinTag.textContent = `${Math.floor(spinDeg)}°`;
+        } else {
+          this.trickSpinTag.classList.add('hidden');
+        }
+      }
+      if (this.trickGrabTag) {
+        if (isGrabbing) {
+          this.trickGrabTag.classList.remove('hidden');
+          this.trickGrabTag.textContent = grabType || 'METHOD';
+        } else {
+          this.trickGrabTag.classList.add('hidden');
+        }
+      }
+    } else {
+      this.trickMeter.classList.add('hidden');
     }
   }
 

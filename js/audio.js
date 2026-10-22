@@ -491,6 +491,134 @@ export class SoundEngine {
   }
 
   /**
+   * Sound effect: Aerial spin rotation swoosh (Q / E spin milestones)
+   */
+  playSpinWhoosh() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.exponentialRampToValueAtTime(740, t + 0.18);
+
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.2);
+  }
+
+  /**
+   * Sound effect: Grab board edge (S key)
+   */
+  playGrab() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // Crisp high snap / twang
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(620, t);
+    osc.frequency.exponentialRampToValueAtTime(280, t + 0.12);
+
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.12);
+  }
+
+  /**
+   * Sound effect: Triumphant Trick Fanfare on clean landing
+   */
+  playTrickSuccess(points = 500) {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // Ascending celebratory major chord progression
+    const isMegaTrick = points >= 1200;
+    const notes = isMegaTrick 
+      ? [523.25, 659.25, 783.99, 1046.50, 1318.51] // C5, E5, G5, C6, E6
+      : [523.25, 659.25, 783.99, 1046.50];        // C5, E5, G5, C6
+
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.065);
+
+      const vol = isMegaTrick ? 0.28 : 0.22;
+      gain.gain.setValueAtTime(vol, t + idx * 0.065);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.065 + 0.4);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t + idx * 0.065);
+      osc.stop(t + idx * 0.065 + 0.4);
+    });
+  }
+
+  /**
+   * Sound effect: Failed landing / caught edge wipeout
+   */
+  playFailedLanding() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // Low dissonance crunch
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(35, t + 0.35);
+
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.35);
+
+    // Harsh caught-edge skid noise
+    const noiseBuffer = this.createNoiseBuffer(0.35);
+    if (noiseBuffer) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = noiseBuffer;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.setValueAtTime(1200, t);
+      f.frequency.exponentialRampToValueAtTime(300, t + 0.35);
+      f.Q.setValueAtTime(3.5, t);
+
+      const ng = this.ctx.createGain();
+      ng.gain.setValueAtTime(0.45, t);
+      ng.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+
+      src.connect(f);
+      f.connect(ng);
+      ng.connect(this.masterGain);
+      src.start(t);
+      src.stop(t + 0.35);
+    }
+  }
+
+  /**
    * Toggles audio mute state
    */
   toggleMute() {

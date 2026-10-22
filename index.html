@@ -92,6 +92,14 @@
         <span>🛡️ RESPAWN SHIELD</span>
       </div>
 
+      <!-- Aerial Trick Real-Time Display -->
+      <div id="hud-trick-meter" class="hud-trick-meter hidden">
+        <span class="trick-air-icon">✈️</span>
+        <span id="hud-trick-status" class="trick-status">AIR 0.0s</span>
+        <span id="hud-trick-spin" class="trick-tag hidden">0°</span>
+        <span id="hud-trick-grab" class="trick-tag grab-tag hidden">METHOD</span>
+      </div>
+
       <!-- Controls / Audio Bar in Top Right -->
       <div class="hud-actions">
         <button id="btn-audio-toggle" class="btn-icon" title="Toggle Sound" aria-label="Toggle Sound">
@@ -122,8 +130,9 @@
       <span><kbd>A</kbd><kbd>D</kbd> Carve</span>
       <span><kbd>W</kbd> Tuck Boost</span>
       <span><kbd>SPACE</kbd> Jump</span>
+      <span><kbd>Q</kbd><kbd>E</kbd> Spin</span>
+      <span><kbd>S</kbd> Grab</span>
       <span><kbd>P</kbd> Pause</span>
-      <span><kbd>R</kbd> Respawn</span>
     </div>
   </div>
 
@@ -205,16 +214,25 @@
           </div>
           <div class="guide-card">
             <div class="guide-keys">
-              <kbd>P</kbd> / <kbd>ESC</kbd> &bull; <kbd>R</kbd>
+              <kbd>Q</kbd> <kbd>E</kbd>
             </div>
-            <h3>Game Controls</h3>
-            <p>Press <kbd>P</kbd> or <kbd>ESC</kbd> anytime to pause. Press <kbd>R</kbd> to quick-respawn and reset your run.</p>
+            <h3>Air Spins</h3>
+            <p>Hold Q or E in the air to spin 180°, 360°, 540°, or 720°. Time your rotation to land facing forward or switch!</p>
+          </div>
+          <div class="guide-card">
+            <div class="guide-keys">
+              <kbd>S</kbd>
+            </div>
+            <h3>Board Grabs</h3>
+            <p>Hold S in mid-air for stylish Method and Indy grabs. Hold longer for bigger points, but release before touching down!</p>
           </div>
         </div>
 
         <div class="guide-tips">
           <h4>PRO TIPS</h4>
           <ul>
+            <li>✨ <strong>Trick Combos:</strong> Combine a 360° spin with an S grab for a 1.5x mega trick multiplier!</li>
+            <li>⚠️ <strong>Landing Alignment:</strong> Land facing straight or switch. Landing sideways or holding a grab causes an edge-catch wipeout!</li>
             <li>🏁 <strong>Checkpoints:</strong> Pass glowing blue gates for +250 pts and a safe respawn anchor.</li>
             <li>⚡ <strong>Nitro Boost:</strong> Grab glowing cyan canisters for a 4-second supersonic speed rush!</li>
             <li>🪙 <strong>Gold Coins:</strong> Gather glowing coin lines & arcs for +10 coins and +50 points each.</li>

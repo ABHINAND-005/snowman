@@ -3,9 +3,9 @@
 [![Three.js](https://img.shields.io/badge/Three.js-r160-00f0ff?logo=three.js)](https://threejs.org/)
 [![Web Audio API](https://img.shields.io/badge/Audio-Web_Audio_API-ffd166)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 [![License: MIT](https://img.shields.io/badge/License-MIT-48cae4.svg)](LICENSE)
-[![Phase](https://img.shields.io/badge/Status-Phase_3_Complete-00F0FF)](#development-roadmap)
+[![Phase](https://img.shields.io/badge/Status-Phase_4_Complete-00F0FF)](#development-roadmap)
 
-An exhilarating 3D browser-based downhill snowboarding game built with **Three.js** and procedural **Web Audio API**. Carve down endless snowy peaks, dodge mountain obstacles, gather glowing gold coins, and catch massive air off natural snow kickers.
+An exhilarating 3D browser-based downhill snowboarding game built with **Three.js** and procedural **Web Audio API**. Carve down endless snowy peaks, dodge mountain obstacles, gather glowing gold coins, rocket through nitro boosts, and catch massive air off natural snow kickers.
 
 ---
 
@@ -17,6 +17,7 @@ An exhilarating 3D browser-based downhill snowboarding game built with **Three.j
   - [Phase 1: Core Playable Engine](#phase-1-core-playable-engine)
   - [Phase 2: Obstacles & Collectible Coins](#phase-2-obstacles--collectible-coins)
   - [Phase 3: Checkpoints & Nitro Boosts](#phase-3-checkpoints--nitro-boosts)
+  - [Phase 4: Rider Animations & Aerial Trick System](#phase-4-rider-animations--aerial-trick-system)
 - [Controls](#controls)
 - [Gameplay Mechanics](#gameplay-mechanics)
 - [Technology Stack](#technology-stack)
@@ -94,15 +95,40 @@ In **SNOWMAN**, you control an alpine snowboarder descending down an endless pro
   - Respawns the rider at the checkpoint coordinates with forward glide velocity.
   - Grants **3.0 seconds of collision immunity** with an animated glowing cyan wireframe shield sphere and `"🛡️ RESPAWN SHIELD"` HUD badge.
 
+### Phase 4: Rider Animations & Aerial Trick System
+- **Smooth Carving & Body Kinematics**:
+  - Dynamically responsive board roll (up to 26°), inverse torso counter-lean, knee flexion, and balance arm adjustments.
+  - Dynamic snow spray emitted along the carving edge based on lateral velocity and edge sharpness.
+- **Aerodynamic Speed Tuck**:
+  - Drops rider into an ultra-low racing crouch, arms pulled back along thighs, visor tracking forward, and board nose dipping for speed.
+- **Aerial Rotations & Q/E Spins**:
+  - Full mid-air yaw spin rotation with `Q` (counter-clockwise) and `E` (clockwise).
+  - Progressive trick detection at 180°, 360°, 540°, 720°, 900°, and 1080° milestones with whoosh audio synthesis.
+- **Mid-Air Board Grabs (S Key)**:
+  - Deep knee compression with hand extending to grab the board edge between bindings (Method & Indy grabs).
+  - Dramatic board tweak/tilt and style arm extension into the sky.
+  - Sustained grab scoring rewards holding grabs before landing.
+- **Real-Time Air Trick HUD**:
+  - Animated live HUD meter displays airtime (e.g. `AIR 1.2s`), active spin degrees (`360°`), and grab tag (`METHOD`).
+- **Landing Alignment & Wipeout Physics**:
+  - Physical landing check: riders must land facing forward ($\le 42^\circ$) or switch ($\ge 138^\circ$) and release grabs before touchdown.
+  - Landing sideways ($42^\circ < |\theta| < 138^\circ$) or landing while holding grab catches an edge, triggering a bone-jarring crunch, wipeout ragdoll tumble, snow explosion, and Game Over screen with detailed wipeout cause.
+  - Clean landings award trick bonus points, 1.5x Spin+Grab combo multipliers, +250 switch landing bonuses, triumphant fanfare, and heavy radial snow landing spray.
+- **Takeoff & Touchdown Particle Bursts**:
+  - Explosive upward powder poof at jump takeoff and kicker launches.
+  - Radial snow spray fan upon clean touchdowns proportional to impact velocity.
+
 ---
 
 ## Controls
 
 | Keyboard Control | Action |
 | :--- | :--- |
-| <kbd>A</kbd> / <kbd>D</kbd> or <kbd>←</kbd> / <kbd>→</kbd> | Steer & Carve Left / Right |
+| <kbd>A</kbd> / <kbd>D</kbd> or <kbd>←</kbd> / <kbd>→</kbd> | Steer & Carve Left / Right (Air Steering in flight) |
 | <kbd>W</kbd> or <kbd>↑</kbd> | Aerodynamic Tuck (Speed & Acceleration Boost) |
 | <kbd>Space</kbd> | Ollie / Jump off snow or kicker ramps |
+| <kbd>Q</kbd> / <kbd>E</kbd> | Aerial Spin Left / Right (180°, 360°, 540°, 720°) |
+| <kbd>S</kbd> or <kbd>↓</kbd> | Mid-Air Board Grab (Method & Indy Grabs) |
 | <kbd>P</kbd> or <kbd>Esc</kbd> | Pause / Resume Game |
 | <kbd>R</kbd> | Quick Respawn / Restart Run |
 
@@ -197,7 +223,7 @@ The game runs locally with standard static web hosting and zero build steps.
 - [x] **Phase 1**: Core playable 3D game, character model, downhill kinematics, infinite terrain chunks, falling snow, audio synthesis, HUD.
 - [x] **Phase 2**: Obstacle systems (trees, rocks, fallen logs, ice blocks, snowmen), fair path carving, distance difficulty curve, 3D rotating gold coins, collection patterns, and coin counters.
 - [x] **Phase 3**: Checkpoint system, glowing gates, respawn protection shield, and nitro boost mechanics.
-- [ ] **Phase 4**: Expanded trick system (rotations, grabs, flips), trick scoring, and aerial animations.
+- [x] **Phase 4**: Expanded trick system (180°–1080° rotations, Method/Indy grabs), trick combos, landing alignment checks, and failed landing wipeouts.
 - [ ] **Phase 5**: Advanced persistent progression, cosmetics shop, character customization, and detailed statistics.
 - [ ] **Phase 6**: On-screen virtual joystick / touch controls for mobile and tablet devices, advanced audio settings.
 - [ ] **Phase 7**: Final optimization, performance tuning, and polish.

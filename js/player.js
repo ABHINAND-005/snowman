@@ -1,16 +1,19 @@
 /**
- * Snowboarder Character & Physics Engine for SNOWMAN
+ * Snowboarder Character, Animation & Aerial Trick Physics Engine for SNOWMAN
  * Constructs a low-poly male snowboarder (jacket, pants, helmet, goggles, board, bindings)
- * and handles downhill kinematics, carving, aerodynamic tucking, jumping, and collision response.
+ * and handles downhill kinematics, smooth carving, aerodynamic tucking, jumping,
+ * aerial trick rotations (Q/E spins), board grabs (S), air steering, landing alignment,
+ * and wipeout ragdoll physics.
  */
 
 import * as THREE from 'three';
 
 export class Player {
-  constructor(scene, terrain, soundEngine) {
+  constructor(scene, terrain, soundEngine, environment = null) {
     this.scene = scene;
     this.terrain = terrain;
     this.sound = soundEngine;
+    this.environment = environment;
 
     // Movement physics parameters
     this.speed = 12; // Initial forward speed (m/s)
@@ -42,6 +45,16 @@ export class Player {
     this.stumbleTimer = 0;
     this.stumbleDir = 1;
 
+    // Aerial Trick & Rotation States (Phase 4)
+    this.spinAngle = 0; // Total yaw spin in radians
+    this.spinVelocity = 0; // Rad/s
+    this.isGrabbing = false;
+    this.grabTime = 0;
+    this.highestSpinMilestone = 0; // 180, 360, 540, 720, 900, 1080
+    this.currentTricks = [];
+    this.airSteerRoll = 0; // Bank roll during air steering
+    this.isSwitchStance = false;
+
     // Visual animation states
     this.carveRoll = 0;
     this.tuckProgress = 0;
@@ -52,7 +65,10 @@ export class Player {
       left: false,
       right: false,
       tuck: false,
-      jump: false
+      jump: false,
+      spinLeft: false,
+      spinRight: false,
+      grab: false
     };
 
     // Build the 3D snowboarder mesh hierarchy
@@ -71,7 +87,6 @@ export class Player {
     // -------------------------------------------------------------
     // 1. Materials
     // -------------------------------------------------------------
-    // Snowboard deck with vibrant alpine graphic
     const boardDeckMat = new THREE.MeshStandardMaterial({
       color: 0x0f172a,
       roughness: 0.35,
@@ -152,7 +167,7 @@ export class Player {
     // Default snowboard stance: rider body angled ~50 degrees to the board
     this.riderGroup.rotation.y = Math.PI * 0.28;
 
-    // Boots
+    // Boots (firmly locked onto the bindings)
     const bootGeom = new THREE.BoxGeometry(0.2, 0.2, 0.36);
     this.leftBoot = new THREE.Mesh(bootGeom, bootsMat);
     this.leftBoot.position.set(-0.06, 0.12, 0.48);
@@ -207,7 +222,7 @@ export class Player {
     const armGeom = new THREE.CylinderGeometry(0.08, 0.09, 0.52, 6);
     const mittenGeom = new THREE.BoxGeometry(0.14, 0.16, 0.14);
 
-    // Left Arm (extended back for freeride balance)
+    // Left Arm (reaches down for Method grabs or balances out)
     this.leftArmGroup = new THREE.Group();
     this.leftArmGroup.position.set(-0.32, 0.48, 0);
     this.leftArm = new THREE.Mesh(armGeom, jacketMat);
@@ -219,7 +234,7 @@ export class Player {
     this.leftArmGroup.add(leftMitten);
     this.torsoGroup.add(this.leftArmGroup);
 
-    // Right Arm (extended forward for balance)
+    // Right Arm (front balance arm or grabs)
     this.rightArmGroup = new THREE.Group();
     this.rightArmGroup.position.set(0.32, 0.48, 0);
     this.rightArm = new THREE.Mesh(armGeom, jacketMat);
@@ -234,7 +249,6 @@ export class Player {
     // Head, Helmet & Snow Goggles
     this.headGroup = new THREE.Group();
     this.headGroup.position.set(0, 0.68, 0);
-    // Turn head to look straight down the mountain (cancelling body rotation angle)
     this.headGroup.rotation.y = -Math.PI * 0.28;
 
     // Helmet
@@ -292,6 +306,16 @@ export class Player {
     this.tuckProgress = 0;
     this.landingSquat = 0;
 
+    // Reset trick variables
+    this.spinAngle = 0;
+    this.spinVelocity = 0;
+    this.isGrabbing = false;
+    this.grabTime = 0;
+    this.highestSpinMilestone = 0;
+    this.currentTricks = [];
+    this.airSteerRoll = 0;
+    this.isSwitchStance = false;
+
     // Reset mesh transforms
     this.mesh.position.copy(this.position);
     this.mesh.rotation.set(0, 0, 0);
@@ -304,7 +328,6 @@ export class Player {
 
   /**
    * Activates supersonic nitro speed boost
-   * @param {number} duration - Seconds of boost (default 4.0s)
    */
   activateNitro(duration = 4.0) {
     this.isNitro = true;
@@ -312,8 +335,7 @@ export class Player {
   }
 
   /**
-   * Activates collision immunity shield (e.g. after respawning at checkpoint)
-   * @param {number} duration - Seconds of invulnerability (default 3.0s)
+   * Activates collision immunity shield
    */
   activateShield(duration = 3.0) {
     this.isInvulnerable = true;
@@ -337,6 +359,16 @@ export class Player {
     this.isNitro = false;
     this.nitroTimer = 0;
 
+    // Reset trick variables
+    this.spinAngle = 0;
+    this.spinVelocity = 0;
+    this.isGrabbing = false;
+    this.grabTime = 0;
+    this.highestSpinMilestone = 0;
+    this.currentTricks = [];
+    this.airSteerRoll = 0;
+    this.isSwitchStance = false;
+
     // Reset mesh transforms
     this.mesh.position.copy(this.position);
     this.mesh.rotation.set(0, 0, 0);
@@ -345,22 +377,25 @@ export class Player {
     this.torsoGroup.rotation.set(0, 0, 0);
     this.riderGroup.rotation.set(0, Math.PI * 0.28, 0);
 
-    // Short collision-protection shield
+    // Collision protection
     this.activateShield(3.0);
   }
 
   /**
    * Updates player inputs from keyboard manager
    */
-  setInputs(left, right, tuck, jump) {
+  setInputs(left, right, tuck, jump, spinLeft = false, spinRight = false, grab = false) {
     this.keys.left = left;
     this.keys.right = right;
     this.keys.tuck = tuck;
     this.keys.jump = jump;
+    this.keys.spinLeft = spinLeft;
+    this.keys.spinRight = spinRight;
+    this.keys.grab = grab;
   }
 
   /**
-   * Triggers a vertical ollie / jump
+   * Triggers a manual vertical ollie / jump with Space
    */
   jump() {
     if (this.isGrounded && !this.isCrashed) {
@@ -368,7 +403,38 @@ export class Player {
       this.isJumping = true;
       this.verticalVelocity = this.jumpForce;
       this.airTime = 0;
+      this.spinAngle = 0;
+      this.spinVelocity = 0;
+      this.highestSpinMilestone = 0;
+      this.currentTricks = [];
+      this.grabTime = 0;
+      this.isGrabbing = false;
       this.sound.playJump();
+      if (this.environment) {
+        this.environment.emitTakeoffSpray(this.position);
+      }
+    }
+  }
+
+  /**
+   * Launches rider into the air off a snow kicker ramp
+   */
+  launchRamp(boostVy = 16.0) {
+    if (!this.isCrashed) {
+      this.isGrounded = false;
+      this.isJumping = true;
+      this.verticalVelocity = boostVy;
+      this.airTime = 0;
+      this.spinAngle = 0;
+      this.spinVelocity = 0;
+      this.highestSpinMilestone = 0;
+      this.currentTricks = [];
+      this.grabTime = 0;
+      this.isGrabbing = false;
+      this.sound.playJump();
+      if (this.environment) {
+        this.environment.emitTakeoffSpray(this.position);
+      }
     }
   }
 
@@ -380,42 +446,41 @@ export class Player {
     this.isStumbling = true;
     this.stumbleTimer = 0.45;
     this.stumbleDir = dir;
-    this.velocity.z = Math.max(6, this.velocity.z * 0.82); // speed check
-    this.lateralVelocity += dir * 5.0; // push outward
+    this.velocity.z = Math.max(6, this.velocity.z * 0.82);
+    this.lateralVelocity += dir * 5.0;
     this.sound.playStumble();
   }
 
   /**
    * Triggers a crash / wipeout sequence
    */
-  crash() {
+  crash(cause = 'obstacle') {
     if (this.isCrashed) return;
     this.isCrashed = true;
     this.sound.playCrash();
     this.sound.silenceLoops();
 
-    // Ragdoll tumble effect
-    this.verticalVelocity = 5.0;
+    // Ragdoll tumble initial impulse
+    this.verticalVelocity = 5.5;
     this.lateralVelocity += (Math.random() - 0.5) * 8.0;
   }
 
   /**
    * Main per-frame physics & animation update
-   * @param {number} delta - Frame delta time in seconds
    */
   update(delta) {
     // -------------------------------------------------------------
-    // 1. Crash State Animation
+    // 1. Crash / Wipeout State Animation
     // -------------------------------------------------------------
     if (this.isCrashed) {
       this.verticalVelocity -= this.gravity * delta;
       this.position.y += this.verticalVelocity * delta;
-      this.position.z += this.velocity.z * 0.4 * delta;
+      this.position.z += this.velocity.z * 0.45 * delta;
       this.position.x += this.lateralVelocity * delta;
 
-      // Friction stops the tumble
-      this.velocity.z = Math.max(0, this.velocity.z - 15 * delta);
-      this.lateralVelocity *= 0.94;
+      // Snow friction halts the wipeout tumble
+      this.velocity.z = Math.max(0, this.velocity.z - 16 * delta);
+      this.lateralVelocity *= 0.93;
 
       const groundY = this.terrain.getHeight(this.position.x, this.position.z);
       if (this.position.y < groundY + 0.2) {
@@ -423,10 +488,11 @@ export class Player {
         this.verticalVelocity = 0;
       }
 
-      // Tumble rotation
-      this.riderGroup.rotation.x += 4.5 * delta;
-      this.riderGroup.rotation.z += 3.2 * delta;
-      this.boardGroup.rotation.y += 5.0 * delta;
+      // Ragdoll tumble cartwheel rotation
+      this.riderGroup.rotation.x += 5.5 * delta;
+      this.riderGroup.rotation.z += 4.0 * delta;
+      this.boardGroup.rotation.y += 6.5 * delta;
+      this.boardGroup.rotation.z += 5.5 * delta;
 
       this.mesh.position.copy(this.position);
       return;
@@ -474,64 +540,229 @@ export class Player {
     if (this.velocity.z < targetMaxSpeed) {
       this.velocity.z = Math.min(this.velocity.z + accelRate * delta, targetMaxSpeed);
     } else if (this.velocity.z > targetMaxSpeed) {
-      // Gentle air resistance deceleration when releasing tuck or nitro
       this.velocity.z -= 6.0 * delta;
     }
 
     // -------------------------------------------------------------
-    // 3. Lateral Steering & Carving
+    // 3. Lateral Steering & Carving / Air Steering
     // -------------------------------------------------------------
     let steerDir = 0;
     if (this.keys.left) steerDir -= 1;
     if (this.keys.right) steerDir += 1;
 
-    // Apply lateral acceleration
-    const targetLatVel = steerDir * this.turnSpeed;
-    this.lateralVelocity += (targetLatVel - this.lateralVelocity) * 12.0 * delta;
-    this.position.x += this.lateralVelocity * delta;
+    if (this.isGrounded) {
+      // Ground carving
+      const targetLatVel = steerDir * this.turnSpeed;
+      this.lateralVelocity += (targetLatVel - this.lateralVelocity) * 12.0 * delta;
+      this.position.x += this.lateralVelocity * delta;
+    } else {
+      // Air steering (nudges flight path and banks rider in mid-air)
+      const targetAirLatVel = steerDir * (this.turnSpeed * 0.65);
+      this.lateralVelocity += (targetAirLatVel - this.lateralVelocity) * 6.5 * delta;
+      this.position.x += this.lateralVelocity * delta;
+
+      const targetAirRoll = (-this.lateralVelocity / this.turnSpeed) * 0.42;
+      this.airSteerRoll += (targetAirRoll - this.airSteerRoll) * 8.0 * delta;
+    }
 
     // Forward progression
     this.position.z += this.velocity.z * delta;
 
     // -------------------------------------------------------------
-    // 4. Vertical Physics & Ground Following
+    // 4. Aerial Tricks: Q/E Spins & S Grab Pose
+    // -------------------------------------------------------------
+    if (!this.isGrounded) {
+      // Q / E Spin Rotations
+      if (this.keys.spinLeft) {
+        this.spinVelocity = -6.4; // ~366°/sec
+      } else if (this.keys.spinRight) {
+        this.spinVelocity = 6.4;
+      } else {
+        // Coasting damping when keys released
+        this.spinVelocity *= Math.pow(0.22, delta);
+      }
+
+      this.spinAngle += this.spinVelocity * delta;
+
+      // Detect spin milestones (180, 360, 540, 720, 900, 1080)
+      const totalDeg = Math.floor(Math.abs(this.spinAngle) * (180 / Math.PI));
+      const currentMilestone = Math.floor(totalDeg / 180) * 180;
+      if (currentMilestone > this.highestSpinMilestone && currentMilestone >= 180) {
+        this.highestSpinMilestone = currentMilestone;
+        this.sound.playSpinWhoosh();
+        const trickName = `${currentMilestone}° Spin`;
+        if (!this.currentTricks.includes(trickName)) {
+          this.currentTricks.push(trickName);
+        }
+      }
+
+      // S Board Grab
+      if (this.keys.grab) {
+        if (!this.isGrabbing) {
+          this.sound.playGrab();
+        }
+        this.isGrabbing = true;
+        this.grabTime += delta;
+        const grabName = (this.spinVelocity < -0.1) ? 'Method Grab' : 'Indy Grab';
+        if (!this.currentTricks.includes(grabName)) {
+          this.currentTricks.push(grabName);
+        }
+      } else {
+        this.isGrabbing = false;
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 5. Vertical Physics, Natural Air & Landing Alignment Checks
     // -------------------------------------------------------------
     const groundY = this.terrain.getHeight(this.position.x, this.position.z);
 
-    // Check jump input
+    // Check manual jump input
     if (this.keys.jump && this.isGrounded) {
       this.jump();
     }
 
+    // Natural airborne flight over sudden terrain crests/drops
+    if (this.isGrounded && (this.position.y - groundY > 0.38) && this.velocity.z > 14) {
+      this.isGrounded = false;
+      this.airTime = 0;
+      this.spinAngle = 0;
+      this.spinVelocity = 0;
+      this.highestSpinMilestone = 0;
+      this.currentTricks = [];
+      this.grabTime = 0;
+      this.isGrabbing = false;
+      if (this.environment) {
+        this.environment.emitTakeoffSpray(this.position);
+      }
+    }
+
     if (!this.isGrounded) {
-      // Airborne: apply gravity
+      // Airborne trajectory
       this.verticalVelocity -= this.gravity * delta;
       this.position.y += this.verticalVelocity * delta;
       this.airTime += delta;
       this.totalAirTime += delta;
 
-      // Landing check
+      // -----------------------------------------------------------
+      // Landing Touchdown & Alignment Quality Check
+      // -----------------------------------------------------------
       if (this.position.y <= groundY) {
         this.position.y = groundY;
         this.isGrounded = true;
         this.isJumping = false;
 
-        // Landing shock absorption squat
-        const impact = Math.abs(this.verticalVelocity);
-        this.landingSquat = Math.min(impact * 0.04, 0.4);
-        this.sound.playLanding(Math.min(impact / 15, 1));
+        // Calculate normalized board yaw angle relative to downhill: [-180, 180]
+        let normAngle = ((this.spinAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        if (normAngle > Math.PI) normAngle -= Math.PI * 2;
+        const absAngleDeg = Math.abs(normAngle) * (180 / Math.PI);
 
-        // Reward air-time bonus if significant air
-        if (this.airTime > 0.45) {
-          const bonus = Math.round(this.airTime * 400);
-          this.sound.playAirReward();
-          window.dispatchEvent(new CustomEvent('snowman_airbonus', {
-            detail: { bonus, airTime: this.airTime }
+        // Check for failed landing / wipeout:
+        // Case A: Touching down while still holding board grab (deck caught in hands)
+        if (this.isGrabbing) {
+          this.crash('trick');
+          this.sound.playFailedLanding();
+          if (this.environment) {
+            this.environment.emitCrashBlast(this.position);
+          }
+          window.dispatchEvent(new CustomEvent('snowman_badlanding', {
+            detail: { cause: 'landed while holding grab' }
           }));
+          return;
         }
 
+        // Case B: Touching down sideways (between 42 deg and 138 deg) catching an edge
+        if (absAngleDeg > 42 && absAngleDeg < 138) {
+          this.crash('trick');
+          this.sound.playFailedLanding();
+          if (this.environment) {
+            this.environment.emitCrashBlast(this.position);
+          }
+          const errReason = absAngleDeg < 90 ? 'under-rotated trick' : 'over-rotated trick';
+          window.dispatchEvent(new CustomEvent('snowman_badlanding', {
+            detail: { cause: `caught edge on landing (${errReason})` }
+          }));
+          return;
+        }
+
+        // Case C: Clean landing! (forward <= 42 deg or switch >= 138 deg)
+        const isSwitch = absAngleDeg >= 138;
+        this.isSwitchStance = isSwitch;
+
+        // Compute trick score & naming
+        let trickScore = 0;
+        let trickTitleParts = [];
+
+        // 1. Spin score
+        if (this.highestSpinMilestone >= 180) {
+          const spinScores = {
+            180: 200,
+            360: 500,
+            540: 950,
+            720: 1600,
+            900: 2400,
+            1080: 3500
+          };
+          const pts = spinScores[this.highestSpinMilestone] || (this.highestSpinMilestone * 3.5);
+          trickScore += pts;
+          trickTitleParts.push(`${this.highestSpinMilestone}°`);
+        }
+
+        // 2. Grab score
+        if (this.grabTime >= 0.15) {
+          const grabType = (this.highestSpinMilestone > 0) ? 'METHOD' : 'INDY';
+          const grabPts = 300 + Math.floor(this.grabTime * 450);
+          trickScore += grabPts;
+          trickTitleParts.push(grabType);
+        }
+
+        // 3. Air time bonus
+        if (this.airTime > 0.38) {
+          const airPts = Math.floor(this.airTime * 350);
+          trickScore += airPts;
+          if (trickTitleParts.length === 0) {
+            trickTitleParts.push('BIG AIR');
+          }
+        }
+
+        // 4. Combo Multiplier (Spin + Grab)
+        if (this.highestSpinMilestone >= 180 && this.grabTime >= 0.2) {
+          trickScore = Math.round(trickScore * 1.5);
+        }
+
+        // 5. Switch Landing Bonus
+        if (isSwitch && trickTitleParts.length > 0) {
+          trickScore += 250;
+          trickTitleParts.push('SWITCH');
+        }
+
+        // Dispatch trick event & audio
+        if (trickScore > 0 && trickTitleParts.length > 0) {
+          const trickFullName = trickTitleParts.join(' ');
+          this.sound.playTrickSuccess(trickScore);
+          window.dispatchEvent(new CustomEvent('snowman_trick', {
+            detail: { trickName: trickFullName, score: trickScore, airTime: this.airTime }
+          }));
+        } else {
+          // Normal landing thud
+          this.sound.playLanding(Math.min(Math.abs(this.verticalVelocity) / 15, 1));
+        }
+
+        // Landing shock absorption squat & radial snow spray
+        const impact = Math.abs(this.verticalVelocity);
+        this.landingSquat = Math.min(impact * 0.045, 0.45);
+        if (this.environment) {
+          this.environment.emitLandingSpray(this.position, Math.min(impact / 10, 2.5));
+        }
+
+        // Reset air tracking
         this.verticalVelocity = 0;
         this.airTime = 0;
+        this.spinAngle = 0;
+        this.highestSpinMilestone = 0;
+        this.currentTricks = [];
+        this.grabTime = 0;
+        this.isGrabbing = false;
       }
     } else {
       // Glued to terrain surface
@@ -539,24 +770,20 @@ export class Player {
     }
 
     // -------------------------------------------------------------
-    // 5. Procedural Body & Board Animations
+    // 6. Procedural Body, Board & Limbs Animations
     // -------------------------------------------------------------
-    // Target board edge roll when carving
-    const targetRoll = (-this.lateralVelocity / this.turnSpeed) * 0.42;
+    // Smooth carve roll
+    const targetRoll = (-this.lateralVelocity / this.turnSpeed) * 0.44;
     this.carveRoll += (targetRoll - this.carveRoll) * 14.0 * delta;
 
-    // Target tuck crouch
+    // Tuck crouch transition
     const targetTuck = this.isTucking ? 1.0 : 0.0;
     this.tuckProgress += (targetTuck - this.tuckProgress) * 10.0 * delta;
 
     // Landing squat recovery
-    this.landingSquat = Math.max(0, this.landingSquat - 3.0 * delta);
+    this.landingSquat = Math.max(0, this.landingSquat - 3.2 * delta);
 
-    // Apply pitch & slope alignment to board
-    const slopePitch = Math.atan(this.terrain.SLOPE_GRADE);
-    this.boardGroup.rotation.x = slopePitch;
-    this.boardGroup.rotation.z = this.carveRoll;
-    // Handle Stumble recovery timer
+    // Stumble timer decay
     if (this.isStumbling) {
       this.stumbleTimer -= delta;
       if (this.stumbleTimer <= 0) {
@@ -564,39 +791,81 @@ export class Player {
       }
     }
 
-    // Animate Torso posture (Tuck, Carve Lean & Stumble)
-    const baseTorsoY = 0.78 - (this.tuckProgress * 0.28) - this.landingSquat;
-    this.torsoGroup.position.y = baseTorsoY;
-    if (this.isStumbling) {
-      this.torsoGroup.rotation.x = -0.3; // Lean back to regain balance
-      this.torsoGroup.rotation.z = -this.stumbleDir * 0.35;
+    // Board & Mesh Orientation
+    if (this.isGrounded) {
+      // Forward alignment on snow surface
+      this.mesh.rotation.y = 0;
+      const slopePitch = Math.atan(this.terrain.SLOPE_GRADE);
+      this.boardGroup.rotation.x = slopePitch - (this.tuckProgress * 0.08);
+      this.boardGroup.rotation.z = this.carveRoll;
+      this.boardGroup.rotation.y = 0;
     } else {
-      this.torsoGroup.rotation.x = this.tuckProgress * 0.55; // Lean forward in tuck
-      this.torsoGroup.rotation.z = -this.carveRoll * 0.45; // Lean into turn
+      // Aerial 3D trick orientation
+      this.mesh.rotation.y = this.spinAngle;
+
+      if (this.isGrabbing) {
+        // Aggressive board tweak in Method / Indy style
+        this.boardGroup.rotation.z = 0.65;
+        this.boardGroup.rotation.x = -0.28;
+        this.boardGroup.rotation.y = 0.22;
+      } else {
+        // Free flight orientation
+        this.boardGroup.rotation.z = this.airSteerRoll;
+        this.boardGroup.rotation.x = Math.max(-0.4, Math.min(0.3, -this.verticalVelocity * 0.025));
+        this.boardGroup.rotation.y = 0;
+      }
     }
 
-    // Animate Arms (tuck in when aerodynamic, flare out when airborne, windmill when stumbling)
-    if (this.isStumbling) {
-      const flail = Math.sin(Date.now() * 0.035) * 0.8;
-      this.leftArmGroup.rotation.z = 0.5 + flail;
-      this.rightArmGroup.rotation.z = -0.5 - flail;
+    // Torso, Arms & Head Posture
+    if (this.isGrabbing) {
+      // Deep knee tuck & hand grabbing deck edge
+      this.torsoGroup.position.y = 0.42 - this.landingSquat;
+      this.torsoGroup.rotation.x = 0.35;
+      this.torsoGroup.rotation.z = -0.45;
+      this.leftArmGroup.rotation.set(-0.25, 0, -1.25); // Left mitten grabs board deck edge!
+      this.rightArmGroup.rotation.set(0.15, 0, 1.15);  // Right arm raised high for style
+      this.headGroup.rotation.y = -Math.PI * 0.28 + 0.2;
     } else if (this.isTucking) {
-      this.leftArmGroup.rotation.z = -0.3;
-      this.rightArmGroup.rotation.z = 0.3;
+      // Aerodynamic racing tuck
+      this.torsoGroup.position.y = 0.48 - this.landingSquat;
+      this.torsoGroup.rotation.x = 0.65;
+      this.torsoGroup.rotation.z = -this.carveRoll * 0.35;
+      this.leftArmGroup.rotation.set(0, 0, -0.35); // Arms tight against thighs
+      this.rightArmGroup.rotation.set(0, 0, 0.35);
+      this.headGroup.rotation.y = -Math.PI * 0.28;
     } else if (!this.isGrounded) {
-      // Big air balance arms
-      this.leftArmGroup.rotation.z = 0.6 + Math.sin(this.airTime * 10) * 0.15;
-      this.rightArmGroup.rotation.z = -0.6 - Math.sin(this.airTime * 10) * 0.15;
+      // Big air flight balance
+      this.torsoGroup.position.y = 0.72 - this.landingSquat;
+      this.torsoGroup.rotation.x = 0.1;
+      this.torsoGroup.rotation.z = -this.airSteerRoll * 0.55;
+      const airWobble = Math.sin(this.airTime * 8) * 0.12;
+      this.leftArmGroup.rotation.set(0, 0, 0.65 + airWobble);
+      this.rightArmGroup.rotation.set(0, 0, -0.65 - airWobble);
+      // Head spots the spin landing
+      this.headGroup.rotation.y = -Math.PI * 0.28 + (this.spinVelocity > 0 ? 0.35 : -0.35);
+    } else if (this.isStumbling) {
+      // Glancing stumble balance recovery
+      this.torsoGroup.position.y = 0.78 - this.landingSquat;
+      this.torsoGroup.rotation.x = -0.3;
+      this.torsoGroup.rotation.z = -this.stumbleDir * 0.35;
+      const flail = Math.sin(Date.now() * 0.035) * 0.8;
+      this.leftArmGroup.rotation.set(0, 0, 0.5 + flail);
+      this.rightArmGroup.rotation.set(0, 0, -0.5 - flail);
     } else {
-      this.leftArmGroup.rotation.z = 0.1;
-      this.rightArmGroup.rotation.z = -0.1;
+      // Standard carving freeride posture
+      this.torsoGroup.position.y = 0.78 - this.landingSquat;
+      this.torsoGroup.rotation.x = 0;
+      this.torsoGroup.rotation.z = -this.carveRoll * 0.55; // Lean into turn
+      this.leftArmGroup.rotation.set(0, 0, 0.15);
+      this.rightArmGroup.rotation.set(0, 0, -0.15);
+      this.headGroup.rotation.y = -Math.PI * 0.28;
     }
 
-    // Update root mesh position
+    // Sync root mesh position
     this.mesh.position.copy(this.position);
 
     // -------------------------------------------------------------
-    // 6. Sound Engine Modulation
+    // 7. Sound Engine Modulation
     // -------------------------------------------------------------
     const carveIntensity = Math.abs(this.lateralVelocity) / this.turnSpeed;
     this.sound.updateDynamicSounds(this.velocity.z, carveIntensity, this.isGrounded);

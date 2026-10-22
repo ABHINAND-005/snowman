@@ -584,6 +584,63 @@ kbd {
   display: none !important;
 }
 
+/* Real-Time Air Trick Display */
+.hud-trick-meter {
+  background: rgba(14, 26, 43, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.45);
+  backdrop-filter: blur(16px);
+  padding: 8px 16px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.25);
+  animation: airPulse 0.8s ease-in-out infinite alternate;
+}
+
+.hud-trick-meter.hidden {
+  display: none !important;
+}
+
+@keyframes airPulse {
+  from { border-color: rgba(0, 240, 255, 0.4); box-shadow: 0 0 12px rgba(0, 240, 255, 0.2); }
+  to { border-color: rgba(255, 209, 102, 0.9); box-shadow: 0 0 24px rgba(255, 209, 102, 0.5); }
+}
+
+.trick-air-icon {
+  font-size: 1.1rem;
+}
+
+.trick-status {
+  font-family: var(--font-tech);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--snow-white);
+  letter-spacing: 0.08em;
+}
+
+.trick-tag {
+  background: rgba(0, 240, 255, 0.2);
+  border: 1px solid var(--glacier-cyan);
+  color: var(--glacier-cyan);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-family: var(--font-tech);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.trick-tag.hidden {
+  display: none !important;
+}
+
+.trick-tag.grab-tag {
+  background: rgba(255, 209, 102, 0.25);
+  border-color: #ffd166;
+  color: #ffd166;
+}
+
 /* HUD Top Actions (Audio, Pause) */
 .hud-actions {
   margin-left: auto;
@@ -655,6 +712,44 @@ kbd {
   25% { transform: translateY(0) scale(1); }
   80% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-16px); }
+}
+
+/* Trick Toast Banner */
+.hud-trick-toast {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.92));
+  border: 2px solid #ffd166;
+  backdrop-filter: blur(20px);
+  padding: 12px 28px;
+  border-radius: 36px;
+  font-family: var(--font-tech);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffd166;
+  text-shadow: 0 0 16px rgba(255, 209, 102, 0.85);
+  box-shadow: 0 0 32px rgba(255, 209, 102, 0.4), 0 10px 25px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: trickPop 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes trickPop {
+  0% { opacity: 0; transform: translateY(24px) scale(0.7); }
+  15% { opacity: 1; transform: translateY(0) scale(1.12); }
+  25% { transform: translateY(0) scale(1); }
+  82% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+}
+
+.trick-points-badge {
+  background: rgba(255, 209, 102, 0.25);
+  border: 1px solid rgba(255, 209, 102, 0.8);
+  padding: 2px 10px;
+  border-radius: 12px;
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 1.15rem;
 }
 
 /* Footer Hint */

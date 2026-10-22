@@ -258,6 +258,56 @@ export class Environment {
   }
 
   /**
+   * Emits dynamic snow powder spray burst at jump takeoff
+   */
+  emitTakeoffSpray(pos) {
+    const burstCount = 14;
+    for (let b = 0; b < burstCount; b++) {
+      const p = this.sprayPool[this.sprayIndex];
+      p.active = true;
+      p.life = 0;
+      p.maxLife = 0.35 + Math.random() * 0.3;
+      p.x = pos.x + (Math.random() - 0.5) * 0.45;
+      p.y = pos.y + 0.12;
+      p.z = pos.z - 0.4 + (Math.random() - 0.5) * 0.35;
+
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2.0 + Math.random() * 3.5;
+      p.vx = Math.cos(angle) * speed;
+      p.vy = 2.2 + Math.random() * 3.2; // upward launch poof
+      p.vz = -(2.5 + Math.random() * 4.5); // backward draft
+      p.size = 1.3 + Math.random() * 1.5;
+
+      this.sprayIndex = (this.sprayIndex + 1) % this.maxSprayParticles;
+    }
+  }
+
+  /**
+   * Emits heavy radial snow powder fan on jump touchdown
+   */
+  emitLandingSpray(pos, impact = 1) {
+    const burstCount = Math.min(Math.floor(16 + impact * 10), 30);
+    for (let b = 0; b < burstCount; b++) {
+      const p = this.sprayPool[this.sprayIndex];
+      p.active = true;
+      p.life = 0;
+      p.maxLife = 0.4 + Math.random() * 0.35;
+      p.x = pos.x + (Math.random() - 0.5) * 0.6;
+      p.y = pos.y + 0.1;
+      p.z = pos.z + (Math.random() - 0.5) * 0.6;
+
+      const angle = Math.random() * Math.PI * 2;
+      const blastSpeed = 3.5 + Math.random() * (4.5 * Math.min(impact, 2.5));
+      p.vx = Math.cos(angle) * blastSpeed;
+      p.vy = 1.2 + Math.random() * 2.8;
+      p.vz = Math.sin(angle) * blastSpeed;
+      p.size = 1.5 + Math.random() * 1.8;
+
+      this.sprayIndex = (this.sprayIndex + 1) % this.maxSprayParticles;
+    }
+  }
+
+  /**
    * Initializes zero-allocation particle pool for coin sparkle effects
    */
   initCoinSparklesPool() {
