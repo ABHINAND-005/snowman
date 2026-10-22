@@ -317,6 +317,80 @@ export class SoundEngine {
   }
 
   /**
+   * Sound effect: Supersonic Nitro Boost activation rocket whoosh
+   */
+  playNitroBoost() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // Rising turbine / rocket roar
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(140, t);
+    osc.frequency.exponentialRampToValueAtTime(580, t + 0.4);
+
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.45);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.45);
+
+    // Filtered rushing hiss burst
+    const noiseBuffer = this.createNoiseBuffer(0.5);
+    if (noiseBuffer) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = noiseBuffer;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.setValueAtTime(400, t);
+      f.frequency.exponentialRampToValueAtTime(2400, t + 0.45);
+      f.Q.setValueAtTime(3.0, t);
+
+      const ng = this.ctx.createGain();
+      ng.gain.setValueAtTime(0.45, t);
+      ng.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+
+      src.connect(f);
+      f.connect(ng);
+      ng.connect(this.masterGain);
+      src.start(t);
+      src.stop(t + 0.5);
+    }
+  }
+
+  /**
+   * Sound effect: Triumphant Checkpoint Reached chime
+   */
+  playCheckpoint() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // Ascending majestic arpeggio (C5, G5, C6, E6)
+    const chords = [523.25, 783.99, 1046.50, 1318.51];
+    chords.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.08);
+
+      gain.gain.setValueAtTime(0.26, t + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.08 + 0.55);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t + idx * 0.08);
+      osc.stop(t + idx * 0.08 + 0.55);
+    });
+  }
+
+  /**
    * Sound effect: Slalom gate clear bonus chime
    */
   playGateBonus() {

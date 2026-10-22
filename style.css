@@ -469,6 +469,121 @@ kbd {
   transition: width 0.15s ease-out;
 }
 
+/* Nitro Boost Card */
+.nitro-card {
+  min-width: 170px;
+  border-color: rgba(0, 240, 255, 0.45);
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.25);
+  animation: nitroPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes nitroPulse {
+  from { border-color: rgba(0, 240, 255, 0.4); box-shadow: 0 0 16px rgba(0, 240, 255, 0.2); }
+  to { border-color: rgba(0, 240, 255, 0.9); box-shadow: 0 0 28px rgba(0, 240, 255, 0.5); }
+}
+
+.nitro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nitro-timer {
+  font-family: var(--font-tech);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--glacier-cyan);
+  letter-spacing: 0.05em;
+}
+
+.nitro-value-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.nitro-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--glacier-cyan);
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.8));
+  animation: boltFlicker 0.4s infinite alternate;
+}
+
+@keyframes boltFlicker {
+  0% { transform: scale(0.92); opacity: 0.8; }
+  100% { transform: scale(1.1); opacity: 1; filter: drop-shadow(0 0 12px rgba(0, 240, 255, 1)); }
+}
+
+.nitro-bar-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.nitro-bar-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #0077b6, #00f0ff);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.8);
+  border-radius: 4px;
+  transition: width 0.08s linear;
+}
+
+.cyan-glow {
+  color: var(--glacier-cyan) !important;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.7) !important;
+}
+
+/* Shield / Invulnerability Badge */
+.shield-badge {
+  background: rgba(0, 180, 216, 0.3);
+  border: 1px solid var(--glacier-cyan);
+  backdrop-filter: blur(12px);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-family: var(--font-tech);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--glacier-cyan);
+  box-shadow: var(--shadow-glow-cyan);
+  display: flex;
+  align-items: center;
+  animation: shieldPulse 0.8s ease-in-out infinite alternate;
+}
+
+.shield-badge.hidden {
+  display: none;
+}
+
+@keyframes shieldPulse {
+  0% { transform: scale(0.96); box-shadow: 0 0 8px rgba(0, 240, 255, 0.3); }
+  100% { transform: scale(1.04); box-shadow: 0 0 20px rgba(0, 240, 255, 0.8); }
+}
+
+/* Checkpoint Respawn Button */
+.btn-checkpoint {
+  background: linear-gradient(135deg, #00b4d8 0%, #0077b6 100%);
+  color: #fff;
+  border: 1px solid rgba(0, 240, 255, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 180, 216, 0.4);
+}
+
+.btn-checkpoint:hover {
+  background: linear-gradient(135deg, #48cae4 0%, #0096c7 100%);
+  box-shadow: 0 12px 30px rgba(0, 240, 255, 0.65);
+  transform: translateY(-2px);
+}
+
+.btn-checkpoint.hidden {
+  display: none !important;
+}
+
 /* HUD Top Actions (Audio, Pause) */
 .hud-actions {
   margin-left: auto;

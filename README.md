@@ -3,7 +3,7 @@
 [![Three.js](https://img.shields.io/badge/Three.js-r160-00f0ff?logo=three.js)](https://threejs.org/)
 [![Web Audio API](https://img.shields.io/badge/Audio-Web_Audio_API-ffd166)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 [![License: MIT](https://img.shields.io/badge/License-MIT-48cae4.svg)](LICENSE)
-[![Phase](https://img.shields.io/badge/Status-Phase_2_Complete-00F0FF)](#development-roadmap)
+[![Phase](https://img.shields.io/badge/Status-Phase_3_Complete-00F0FF)](#development-roadmap)
 
 An exhilarating 3D browser-based downhill snowboarding game built with **Three.js** and procedural **Web Audio API**. Carve down endless snowy peaks, dodge mountain obstacles, gather glowing gold coins, and catch massive air off natural snow kickers.
 
@@ -16,6 +16,7 @@ An exhilarating 3D browser-based downhill snowboarding game built with **Three.j
 - [Features Implemented](#features-implemented)
   - [Phase 1: Core Playable Engine](#phase-1-core-playable-engine)
   - [Phase 2: Obstacles & Collectible Coins](#phase-2-obstacles--collectible-coins)
+  - [Phase 3: Checkpoints & Nitro Boosts](#phase-3-checkpoints--nitro-boosts)
 - [Controls](#controls)
 - [Gameplay Mechanics](#gameplay-mechanics)
 - [Technology Stack](#technology-stack)
@@ -77,6 +78,21 @@ In **SNOWMAN**, you control an alpine snowboarder descending down an endless pro
   - Golden sparkle particle explosion and audio chime on collection.
   - Rhythmic coin combo bonus toasts when collecting coins in quick succession.
   - Live HUD coin counter and persistent `localStorage` all-time coin bank.
+
+### Phase 3: Checkpoints & Nitro Boosts
+- **Glowing Blue Checkpoint Gates**:
+  - 17m wide luminous neon blue arches with translucent energy curtains placed periodically along the descent.
+  - Crossing a gate awards **+250 score points**, plays an ascending major-chord chime, triggers a `"⚡ CHECKPOINT REACHED!"` toast, and registers the coordinates as the run's active respawn anchor.
+- **Supersonic Nitro Boost Pickups**:
+  - Spinning cyan energy crystals surrounded by rotating orbital gyroscopic rings.
+  - Grants a **4.0-second speed burst**, boosting top speed to **34 m/s (~122 km/h)** and acceleration to **18 m/s²** while keeping carving agile and responsive.
+  - Real-time zero-allocation particle pool emitting azure rocket thruster exhaust behind the snowboard.
+  - Dynamic camera FOV widening to 85° for high-velocity rush and procedural turbine/rocket roar audio.
+  - Glowing HUD nitro card with animated electric bolt, timer countdown (`4.0s` $\rightarrow$ `0.0s`), and filling energy bar.
+- **Checkpoint Respawn & Collision Protection**:
+  - **"RESPAWN AT CHECKPOINT"** buttons dynamically appear on both Pause and Game Over menus when a checkpoint has been reached.
+  - Respawns the rider at the checkpoint coordinates with forward glide velocity.
+  - Grants **3.0 seconds of collision immunity** with an animated glowing cyan wireframe shield sphere and `"🛡️ RESPAWN SHIELD"` HUD badge.
 
 ---
 
@@ -180,7 +196,7 @@ The game runs locally with standard static web hosting and zero build steps.
 
 - [x] **Phase 1**: Core playable 3D game, character model, downhill kinematics, infinite terrain chunks, falling snow, audio synthesis, HUD.
 - [x] **Phase 2**: Obstacle systems (trees, rocks, fallen logs, ice blocks, snowmen), fair path carving, distance difficulty curve, 3D rotating gold coins, collection patterns, and coin counters.
-- [ ] **Phase 3**: Checkpoint system, time trial gates, and nitro boost mechanics.
+- [x] **Phase 3**: Checkpoint system, glowing gates, respawn protection shield, and nitro boost mechanics.
 - [ ] **Phase 4**: Expanded trick system (rotations, grabs, flips), trick scoring, and aerial animations.
 - [ ] **Phase 5**: Advanced persistent progression, cosmetics shop, character customization, and detailed statistics.
 - [ ] **Phase 6**: On-screen virtual joystick / touch controls for mobile and tablet devices, advanced audio settings.
@@ -191,7 +207,6 @@ The game runs locally with standard static web hosting and zero build steps.
 ## Known Limitations
 
 - Mobile on-screen touch overlay buttons are scheduled for Phase 6 (keyboard controls are recommended for current phases).
-- Nitro boost mechanics and checkpoint timers are scheduled for Phase 3.
 
 ---
 

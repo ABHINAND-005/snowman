@@ -4,9 +4,10 @@
  * Features:
  * - Deterministic, zero-seam procedural height & normal calculations
  * - Complete obstacle systems: Pine Trees, Jagged Boulders, Fallen Logs, Ice Blocks, Snowmen
- * - Gradual distance-based difficulty scaling with fair path carving
- * - Rotating, glowing 3D gold coins in lines, rainbow jump arcs, and zig-zag carving patterns
- * - Collision detection and collection mechanics
+ * - Checkpoint Gates: Glowing blue arches with 17m clearance, respawn tracking & scoring
+ * - Nitro Boost Pickups: Floating glowing cyan canisters with spinning electric rings
+ * - 3D rotating gold coins with line, arc, and zig-zag patterns
+ * - Fair path carving and distance-based difficulty scaling
  */
 
 import * as THREE from 'three';
@@ -28,6 +29,9 @@ export class Terrain {
     this.chunks = [];
     this.activeObstacles = [];
     this.activeCoins = [];
+    this.activeCheckpoints = [];
+    this.activeNitros = [];
+    this.checkpointCount = 0;
     this.nextChunkZ = -this.CHUNK_LENGTH; // Starts slightly behind initial player
 
     // Cached shared materials & geometries for zero garbage collection
@@ -52,7 +56,6 @@ export class Terrain {
     });
 
     // ---------------- Obstacle Materials ----------------
-    // Rock materials
     this.rockMaterial = new THREE.MeshLambertMaterial({
       color: 0x485563,
       flatShading: true
@@ -62,7 +65,6 @@ export class Terrain {
       flatShading: true
     });
 
-    // Pine tree materials
     this.trunkMaterial = new THREE.MeshLambertMaterial({
       color: 0x3d271d,
       flatShading: true
@@ -76,7 +78,6 @@ export class Terrain {
       flatShading: true
     });
 
-    // Fallen log materials
     this.logBarkMat = new THREE.MeshLambertMaterial({
       color: 0x422817,
       flatShading: true
@@ -90,7 +91,6 @@ export class Terrain {
       flatShading: true
     });
 
-    // Ice block material (translucent glacier crystal)
     this.iceMaterial = new THREE.MeshPhysicalMaterial({
       color: 0x88e5ff,
       roughness: 0.1,
@@ -102,7 +102,6 @@ export class Terrain {
       ior: 1.31
     });
 
-    // Snowman materials
     this.snowmanBodyMat = new THREE.MeshStandardMaterial({
       color: 0xfcfdff,
       roughness: 0.9,
@@ -115,18 +114,16 @@ export class Terrain {
     this.scarfMat = new THREE.MeshLambertMaterial({ color: 0xe11d48 });
     this.stickArmMat = new THREE.MeshLambertMaterial({ color: 0x4a2e1b });
 
-    // Slalom flag materials
     this.flagRedMat = new THREE.MeshLambertMaterial({ color: 0xff3b30 });
     this.flagBlueMat = new THREE.MeshLambertMaterial({ color: 0x007aff });
     this.poleMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 
-    // Kicker ramp material
     this.rampMat = new THREE.MeshStandardMaterial({
       color: 0xd9eaf7,
       roughness: 0.6
     });
 
-    // ---------------- Coin Assets ----------------
+    // ---------------- Coin Materials ----------------
     this.coinMaterial = new THREE.MeshStandardMaterial({
       color: 0xffd166,
       metalness: 0.88,
@@ -141,23 +138,48 @@ export class Terrain {
       emissive: 0xffd166,
       emissiveIntensity: 0.5
     });
+
+    // ---------------- Checkpoint Materials ----------------
+    this.cpTowerMat = new THREE.MeshStandardMaterial({
+      color: 0x0b132b,
+      roughness: 0.3,
+      metalness: 0.85
+    });
+    this.cpEnergyMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.95
+    });
+    this.cpBeamMat = new THREE.MeshBasicMaterial({
+      color: 0x00b4d8,
+      transparent: true,
+      opacity: 0.38,
+      side: THREE.DoubleSide
+    });
+
+    // ---------------- Nitro Materials ----------------
+    this.nitroCoreMat = new THREE.MeshStandardMaterial({
+      color: 0x00f0ff,
+      emissive: 0x00b4d8,
+      emissiveIntensity: 0.85,
+      roughness: 0.15,
+      metalness: 0.4
+    });
+    this.nitroRingMat = new THREE.MeshBasicMaterial({
+      color: 0x90e0ef,
+      wireframe: true
+    });
   }
 
   /**
    * Exact analytical height function of the mountain.
-   * Produces continuous, smooth downhill terrain with rolling powder rollers and side half-pipe banks.
-   * Because it is purely deterministic, adjacent chunks are 100% seamless with zero gaps.
    */
   getHeight(x, z) {
-    // 1. Base downhill incline
     let y = -z * this.SLOPE_GRADE;
-
-    // 2. Rolling natural terrain waves
     y += Math.sin(z * 0.035) * 2.8;
     y += Math.cos(x * 0.045) * 2.2;
     y += Math.sin((x + z) * 0.02) * 1.6;
 
-    // 3. Half-pipe / valley side banks: steeply curves upward at outer boundaries
     const absX = Math.abs(x);
     if (absX > this.RUN_HALF_WIDTH) {
       const diff = absX - this.RUN_HALF_WIDTH;
@@ -194,7 +216,6 @@ export class Terrain {
       this.SEGS_X,
       this.SEGS_Z
     );
-    // Orient plane so +Y is up and +Z is forward along the mountain run
     geometry.rotateX(-Math.PI / 2);
 
     const chunkMesh = new THREE.Mesh(geometry, this.snowMaterial);
@@ -206,14 +227,15 @@ export class Terrain {
       zStart: chunkZStart,
       zEnd: chunkZStart + this.CHUNK_LENGTH,
       obstacles: [],
-      coins: []
+      coins: [],
+      checkpoints: [],
+      nitros: []
     };
 
-    // Position vertices
     this.updateChunkVertices(chunkData);
     this.scene.add(chunkMesh);
 
-    // Spawn obstacles and coins for this chunk
+    // Spawn world elements
     this.spawnChunkWorld(chunkData);
 
     this.chunks.push(chunkData);
@@ -245,21 +267,31 @@ export class Terrain {
   }
 
   /**
-   * Spawns obstacles and coin formations with progressive distance-based difficulty
-   * while guaranteeing a fair, navigable line through every obstacle pattern.
+   * Spawns obstacles, coins, checkpoints, and nitro pickups on a chunk
    */
   spawnChunkWorld(chunkData) {
     const zStart = chunkData.zStart;
     const zEnd = chunkData.zEnd;
 
-    // Starting plateau (z < 60) stays clean
     if (zStart < 60) return;
 
-    // Distance-based difficulty factor (0.0 to 1.0)
     const difficulty = Math.min(Math.max((zStart - 60) / 2200, 0), 1.0);
 
     // -------------------------------------------------------------------------
-    // 1. Boundary Pine Forests (placed along outer side powder banks)
+    // 1. Checkpoint Gates (Every ~240m along the slope)
+    // -------------------------------------------------------------------------
+    const chunkIndex = Math.round(zStart / this.CHUNK_LENGTH);
+    if (zStart >= 220 && chunkIndex % 2 === 0) {
+      this.checkpointCount++;
+      const cpZ = zStart + 55;
+      const cpY = this.getHeight(0, cpZ);
+      const gate = this.createCheckpointGate(0, cpY, cpZ, this.checkpointCount);
+      chunkData.checkpoints.push(gate);
+      this.activeCheckpoints.push(gate);
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. Boundary Pine Forests (Side powder banks)
     // -------------------------------------------------------------------------
     const sideTreeCount = 14 + Math.floor(Math.random() * 6);
     for (let i = 0; i < sideTreeCount; i++) {
@@ -278,35 +310,29 @@ export class Terrain {
     }
 
     // -------------------------------------------------------------------------
-    // 2. Fair-Path Fairway Obstacle Clusters
+    // 3. Fair-Path Obstacle Bands
     // -------------------------------------------------------------------------
-    // Divide chunk into 3 longitudinal bands
     const bandLength = this.CHUNK_LENGTH / 3;
     for (let b = 0; b < 3; b++) {
       const bandZ = zStart + b * bandLength + bandLength * 0.45;
 
-      // Define 5 virtual fairway lanes: -20, -10, 0, +10, +20
-      const lanes = [-20, -10, 0, 10, 20];
+      // Don't spawn dense obstacles right on top of a checkpoint gate
+      if (Math.abs(bandZ - (zStart + 55)) < 16 && chunkIndex % 2 === 0) continue;
 
-      // GUARANTEE FAIR ROUTE: pick 1 or 2 lanes to keep completely OPEN
+      const lanes = [-20, -10, 0, 10, 20];
       const openLaneIdx1 = Math.floor(Math.random() * 5);
       let openLaneIdx2 = (openLaneIdx1 + 2) % 5;
-      if (difficulty > 0.6) {
-        // Higher difficulty keeps 1 clear open route
-        openLaneIdx2 = -1;
-      }
+      if (difficulty > 0.6) openLaneIdx2 = -1;
 
-      // Populate other lanes with varied obstacles
       lanes.forEach((laneX, idx) => {
         if (idx === openLaneIdx1 || idx === openLaneIdx2) {
-          // Open navigable lane! Chance to spawn coins along the safe line
+          // Open lane: chance of coin line
           if (Math.random() < 0.75) {
             this.spawnCoinLine(chunkData, laneX, bandZ - 10, 5, 3.8);
           }
           return;
         }
 
-        // Spawn probability scales with difficulty
         const spawnChance = 0.45 + difficulty * 0.45;
         if (Math.random() > spawnChance) return;
 
@@ -314,42 +340,30 @@ export class Terrain {
         const jitterZ = bandZ + (Math.random() - 0.5) * 8.0;
         const y = this.getHeight(jitterX, jitterZ);
 
-        // Pick obstacle type based on random roll & difficulty
         const roll = Math.random();
         let obs = null;
 
         if (roll < 0.28) {
-          // Pine tree on run
           const tree = this.createPineTree();
           tree.position.set(jitterX, y, jitterZ);
           this.scene.add(tree);
           obs = { type: 'tree', mesh: tree, x: jitterX, y, z: jitterZ, radius: 1.2 };
         } else if (roll < 0.50) {
-          // Jagged boulder
           const rock = this.createRock();
           rock.position.set(jitterX, y, jitterZ);
           this.scene.add(rock);
           obs = { type: 'rock', mesh: rock, x: jitterX, y, z: jitterZ, radius: 1.3 };
         } else if (roll < 0.70) {
-          // Fallen Log across slope
           const log = this.createFallenLog();
           log.position.set(jitterX, y + 0.15, jitterZ);
           this.scene.add(log);
-          obs = {
-            type: 'log',
-            mesh: log,
-            x: jitterX, y, z: jitterZ,
-            radius: 0.9,
-            width: 4.0
-          };
+          obs = { type: 'log', mesh: log, x: jitterX, y, z: jitterZ, radius: 0.9, width: 4.0 };
         } else if (roll < 0.86) {
-          // Ice Monolith / Block
           const ice = this.createIceBlock();
           ice.position.set(jitterX, y, jitterZ);
           this.scene.add(ice);
           obs = { type: 'ice', mesh: ice, x: jitterX, y, z: jitterZ, radius: 1.35 };
         } else {
-          // Snowman!
           const snowman = this.createSnowman();
           snowman.position.set(jitterX, y, jitterZ);
           this.scene.add(snowman);
@@ -364,11 +378,11 @@ export class Terrain {
     }
 
     // -------------------------------------------------------------------------
-    // 3. Snow Kicker Ramps with Coin Rainbow Arcs
+    // 4. Kicker Ramps with Coin Rainbow Arcs & Approach Nitro
     // -------------------------------------------------------------------------
     if (Math.random() < 0.65) {
       const rx = (Math.random() - 0.5) * (this.RUN_HALF_WIDTH * 0.75);
-      const rz = zStart + 25 + Math.random() * (this.CHUNK_LENGTH - 50);
+      const rz = zStart + 25 + Math.random() * (this.CHUNK_LENGTH - 55);
       const ry = this.getHeight(rx, rz);
 
       const rampMesh = this.createKickerRamp();
@@ -380,21 +394,38 @@ export class Terrain {
         mesh: rampMesh,
         x: rx, y: ry, z: rz,
         radius: 2.2,
-        boostVy: 17.0
+        boostVy: 17.5
       };
       chunkData.obstacles.push(obs);
       this.activeObstacles.push(obs);
 
-      // Spawn a majestic parabolic rainbow arc of gold coins launching over the kicker ramp!
+      // Rainbow coin arc soaring over ramp
       this.spawnCoinArc(chunkData, rx, rz + 1.5, 6, 4.2);
+
+      // Place a Nitro Canister leading up to the ramp
+      const nitroZ = rz - 12;
+      const nitroY = this.getHeight(rx, nitroZ) + 0.85;
+      const nitro = this.createNitroPickup(rx, nitroY, nitroZ);
+      chunkData.nitros.push(nitro);
+      this.activeNitros.push(nitro);
+    } else {
+      // Chance of a standalone Nitro pickup along fairway
+      if (Math.random() < 0.55) {
+        const nx = (Math.random() - 0.5) * (this.RUN_HALF_WIDTH * 0.7);
+        const nz = zStart + 40 + Math.random() * 35;
+        const ny = this.getHeight(nx, nz) + 0.85;
+        const nitro = this.createNitroPickup(nx, ny, nz);
+        chunkData.nitros.push(nitro);
+        this.activeNitros.push(nitro);
+      }
     }
 
     // -------------------------------------------------------------------------
-    // 4. Slalom Gates (Bonus +500 pts)
+    // 5. Slalom Gates (Bonus +500 pts)
     // -------------------------------------------------------------------------
     if (Math.random() < 0.7) {
       const gateX = (Math.random() - 0.5) * (this.RUN_HALF_WIDTH * 0.7);
-      const gateZ = zStart + 55;
+      const gateZ = zStart + 80;
       const isRed = Math.random() < 0.5;
 
       const gateGroup = this.createSlalomGate(isRed);
@@ -415,33 +446,129 @@ export class Terrain {
     }
 
     // -------------------------------------------------------------------------
-    // 5. Carving Zig-Zag Coin Formations
+    // 6. Carving Zig-Zag Coin Formations
     // -------------------------------------------------------------------------
     if (Math.random() < 0.6) {
-      const zigzagZ = zStart + 70;
-      this.spawnCoinZigzag(chunkData, zigzagZ, 8, 12.0);
+      const zigzagZ = zStart + 65;
+      this.spawnCoinZigzag(chunkData, zigzagZ, 8, 11.0);
     }
+  }
+
+  // =========================================================================
+  // Checkpoint Gate & Nitro Pickups Builders
+  // =========================================================================
+
+  /**
+   * Builds an expansive glowing blue Checkpoint Gate
+   */
+  createCheckpointGate(centerX, centerY, centerZ, id) {
+    const group = new THREE.Group();
+    const gateWidth = 17.0; // Ample width to ski through
+    const towerHeight = 7.5;
+
+    // Left and Right neon towers
+    [-gateWidth * 0.5, gateWidth * 0.5].forEach((tx) => {
+      // Dark cyber-metal base
+      const baseGeom = new THREE.CylinderGeometry(0.75, 0.95, 1.6, 8);
+      const baseMesh = new THREE.Mesh(baseGeom, this.cpTowerMat);
+      baseMesh.position.set(tx, 0.8, 0);
+      baseMesh.castShadow = true;
+      group.add(baseMesh);
+
+      // Glowing blue energy column
+      const colGeom = new THREE.CylinderGeometry(0.35, 0.45, towerHeight, 8);
+      const colMesh = new THREE.Mesh(colGeom, this.cpEnergyMat);
+      colMesh.position.set(tx, towerHeight * 0.5 + 1.2, 0);
+      colMesh.castShadow = true;
+      group.add(colMesh);
+
+      // Crown beacon
+      const beaconGeom = new THREE.OctahedronGeometry(0.65, 0);
+      const beaconMesh = new THREE.Mesh(beaconGeom, this.cpEnergyMat);
+      beaconMesh.position.set(tx, towerHeight + 1.6, 0);
+      group.add(beaconMesh);
+    });
+
+    // Overhead crossbar arch
+    const archGeom = new THREE.BoxGeometry(gateWidth + 1.2, 0.55, 0.7);
+    const archMesh = new THREE.Mesh(archGeom, this.cpTowerMat);
+    archMesh.position.set(0, towerHeight + 1.0, 0);
+    archMesh.castShadow = true;
+    group.add(archMesh);
+
+    // Glowing energy strip on arch
+    const stripGeom = new THREE.BoxGeometry(gateWidth, 0.2, 0.75);
+    const stripMesh = new THREE.Mesh(stripGeom, this.cpEnergyMat);
+    stripMesh.position.set(0, towerHeight + 1.0, 0);
+    group.add(stripMesh);
+
+    // Holographic energy curtain spanning the gate
+    const beamGeom = new THREE.PlaneGeometry(gateWidth - 1.0, towerHeight - 0.5);
+    const beamMesh = new THREE.Mesh(beamGeom, this.cpBeamMat);
+    beamMesh.position.set(0, (towerHeight - 0.5) * 0.5 + 1.4, 0);
+    group.add(beamMesh);
+
+    group.position.set(centerX, centerY, centerZ);
+    this.scene.add(group);
+
+    return {
+      type: 'checkpoint',
+      mesh: group,
+      beamMesh,
+      id,
+      x: centerX,
+      y: centerY,
+      z: centerZ,
+      width: gateWidth,
+      passed: false
+    };
+  }
+
+  /**
+   * Builds a glowing cyan spinning Nitro Boost pickup
+   */
+  createNitroPickup(x, y, z) {
+    const group = new THREE.Group();
+
+    // Core energy octahedron crystal
+    const crystalGeom = new THREE.OctahedronGeometry(0.65, 0);
+    const crystalMesh = new THREE.Mesh(crystalGeom, this.nitroCoreMat);
+    crystalMesh.castShadow = true;
+    group.add(crystalMesh);
+
+    // Outer spinning electric ring
+    const ringGeom = new THREE.TorusGeometry(0.95, 0.06, 6, 16);
+    const ringMesh = new THREE.Mesh(ringGeom, this.nitroRingMat);
+    group.add(ringMesh);
+
+    group.position.set(x, y, z);
+    this.scene.add(group);
+
+    return {
+      type: 'nitro',
+      mesh: group,
+      ringMesh,
+      x, y, z,
+      baseY: y,
+      collected: false,
+      phase: Math.random() * Math.PI * 2,
+      scaleAnim: 1.0
+    };
   }
 
   // =========================================================================
   // Coin Spawning & Pattern Generators
   // =========================================================================
 
-  /**
-   * Spawns a single 3D rotating gold coin
-   */
   createCoin(x, y, z) {
     const group = new THREE.Group();
 
-    // Coin cylinder body
     const coinGeom = new THREE.CylinderGeometry(0.58, 0.58, 0.14, 18);
-    // Orient flat face forward
     coinGeom.rotateX(Math.PI / 2);
     const body = new THREE.Mesh(coinGeom, this.coinMaterial);
     body.castShadow = true;
     group.add(body);
 
-    // Embossed snowflake / star emblem on face
     const emblemGeom = new THREE.RingGeometry(0.2, 0.42, 6);
     const emblemFront = new THREE.Mesh(emblemGeom, this.coinEmblemMat);
     emblemFront.position.z = 0.08;
@@ -455,7 +582,7 @@ export class Terrain {
     group.position.set(x, y, z);
     this.scene.add(group);
 
-    const coin = {
+    return {
       mesh: group,
       x, y, z,
       baseY: y,
@@ -463,13 +590,8 @@ export class Terrain {
       phase: Math.random() * Math.PI * 2,
       scaleAnim: 1.0
     };
-
-    return coin;
   }
 
-  /**
-   * Spawns a straight line of gold coins down the slope
-   */
   spawnCoinLine(chunkData, startX, startZ, count = 5, spacing = 3.5) {
     for (let i = 0; i < count; i++) {
       const z = startZ + i * spacing;
@@ -482,19 +604,15 @@ export class Terrain {
     }
   }
 
-  /**
-   * Spawns a parabolic rainbow jump arc of gold coins launching over a ramp
-   */
   spawnCoinArc(chunkData, centerX, startZ, count = 6, peakHeight = 4.0) {
     const arcLength = 24.0;
     const spacing = arcLength / count;
 
     for (let i = 0; i < count; i++) {
-      const t = (i + 0.5) / count; // 0 to 1
+      const t = (i + 0.5) / count;
       const z = startZ + i * spacing;
       const x = centerX;
 
-      // Parabolic jump arc formula: 4 * h * t * (1 - t)
       const arcY = 4 * peakHeight * t * (1 - t);
       const groundY = this.getHeight(x, z);
       const y = groundY + 1.2 + arcY;
@@ -505,9 +623,6 @@ export class Terrain {
     }
   }
 
-  /**
-   * Spawns an alternating zig-zag / S-curve of gold coins that encourages rhythmic carving
-   */
   spawnCoinZigzag(chunkData, startZ, count = 8, amplitude = 10.0) {
     const spacing = 4.2;
     for (let i = 0; i < count; i++) {
@@ -525,13 +640,9 @@ export class Terrain {
   // Obstacle Model Generators
   // =========================================================================
 
-  /**
-   * Builds an attractive low-poly snowy pine tree
-   */
   createPineTree() {
     const group = new THREE.Group();
 
-    // Trunk
     const trunkGeom = new THREE.CylinderGeometry(0.3, 0.45, 2.4, 6);
     const trunk = new THREE.Mesh(trunkGeom, this.trunkMaterial);
     trunk.position.y = 1.2;
@@ -539,7 +650,6 @@ export class Terrain {
     trunk.receiveShadow = true;
     group.add(trunk);
 
-    // 3 Foliage cones
     const layerSizes = [
       { r: 2.3, h: 2.6, y: 2.8 },
       { r: 1.8, h: 2.2, y: 4.4 },
@@ -554,7 +664,6 @@ export class Terrain {
       cone.receiveShadow = true;
       group.add(cone);
 
-      // Snowy white tip cap
       const capGeom = new THREE.ConeGeometry(layer.r * 0.55, layer.h * 0.45, 6);
       const cap = new THREE.Mesh(capGeom, this.foliageMaterialSnow);
       cap.position.y = layer.y + layer.h * 0.32;
@@ -567,16 +676,12 @@ export class Terrain {
     return group;
   }
 
-  /**
-   * Builds a stylized snow-capped mountain rock
-   */
   createRock() {
     const group = new THREE.Group();
 
     const radius = 1.3 + Math.random() * 0.8;
     const rockGeom = new THREE.DodecahedronGeometry(radius, 0);
 
-    // Randomize vertex shape for jagged boulder look
     const pos = rockGeom.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       const rx = pos.getX(i) * (0.8 + Math.random() * 0.4);
@@ -592,7 +697,6 @@ export class Terrain {
     rockMesh.receiveShadow = true;
     group.add(rockMesh);
 
-    // Snowy top cap
     const capGeom = new THREE.ConeGeometry(radius * 0.85, radius * 0.6, 5);
     const cap = new THREE.Mesh(capGeom, this.rockCapMaterial);
     cap.position.y = radius * 0.95;
@@ -606,16 +710,12 @@ export class Terrain {
     return group;
   }
 
-  /**
-   * Builds a fallen snowy tree log lying across the slope
-   */
   createFallenLog() {
     const group = new THREE.Group();
 
     const logLength = 3.8 + Math.random() * 1.2;
     const logRadius = 0.38 + Math.random() * 0.1;
 
-    // Main log cylinder (oriented horizontally)
     const logGeom = new THREE.CylinderGeometry(logRadius * 0.9, logRadius, logLength, 7);
     logGeom.rotateZ(Math.PI / 2);
     const logMesh = new THREE.Mesh(logGeom, this.logBarkMat);
@@ -623,7 +723,6 @@ export class Terrain {
     logMesh.receiveShadow = true;
     group.add(logMesh);
 
-    // Snow layer blanket resting across top half of log
     const snowGeom = new THREE.CylinderGeometry(
       logRadius * 0.95,
       logRadius * 1.05,
@@ -637,25 +736,19 @@ export class Terrain {
     snowMesh.position.y = 0.08;
     group.add(snowMesh);
 
-    // Slight angle relative to downhill path
     group.rotation.y = (Math.random() - 0.5) * 0.6;
     return group;
   }
 
-  /**
-   * Builds a translucent glacier cyan crystalline ice monolith
-   */
   createIceBlock() {
     const group = new THREE.Group();
 
-    // Central sharp crystalline column
     const crystalGeom = new THREE.ConeGeometry(1.2, 3.4, 5);
     const crystalMesh = new THREE.Mesh(crystalGeom, this.iceMaterial);
     crystalMesh.position.y = 1.7;
     crystalMesh.castShadow = true;
     group.add(crystalMesh);
 
-    // Flanking secondary ice shards
     [-0.6, 0.6].forEach((offset, idx) => {
       const shardGeom = new THREE.ConeGeometry(0.7, 2.2, 5);
       const shard = new THREE.Mesh(shardGeom, this.iceMaterial);
@@ -669,52 +762,42 @@ export class Terrain {
     return group;
   }
 
-  /**
-   * Builds a stylized 3D Snowman (classic three snowballs, carrot nose, hat, scarf, twig arms)
-   */
   createSnowman() {
     const group = new THREE.Group();
 
-    // 1. Bottom Snowball
     const baseSphere = new THREE.Mesh(new THREE.SphereGeometry(0.95, 8, 8), this.snowmanBodyMat);
     baseSphere.position.y = 0.95;
     baseSphere.castShadow = true;
     group.add(baseSphere);
 
-    // 2. Middle Snowball
     const midSphere = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 8), this.snowmanBodyMat);
     midSphere.position.y = 2.1;
     midSphere.castShadow = true;
     group.add(midSphere);
 
-    // 3. Head Snowball
     const headSphere = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 8), this.snowmanBodyMat);
     headSphere.position.y = 3.05;
     headSphere.castShadow = true;
     group.add(headSphere);
 
-    // Carrot Nose (points along +Z)
     const carrotGeom = new THREE.ConeGeometry(0.1, 0.45, 6);
     carrotGeom.rotateX(Math.PI / 2);
     const carrot = new THREE.Mesh(carrotGeom, this.carrotMat);
     carrot.position.set(0, 3.05, 0.55);
     group.add(carrot);
 
-    // Coal Eyes
     [-0.16, 0.16].forEach((ex) => {
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 4, 4), this.coalMat);
       eye.position.set(ex, 3.2, 0.46);
       group.add(eye);
     });
 
-    // Cozy Red Scarf
     const scarfGeom = new THREE.TorusGeometry(0.52, 0.12, 6, 12);
     scarfGeom.rotateX(Math.PI / 2);
     const scarf = new THREE.Mesh(scarfGeom, this.scarfMat);
     scarf.position.y = 2.65;
     group.add(scarf);
 
-    // Top Hat with Gold Band
     const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.08, 10), this.hatMat);
     hatBrim.position.y = 3.52;
     group.add(hatBrim);
@@ -728,7 +811,6 @@ export class Terrain {
     hatBand.position.y = 3.62;
     group.add(hatBand);
 
-    // Twig Stick Arms
     [-1, 1].forEach((dir) => {
       const armGeom = new THREE.CylinderGeometry(0.04, 0.05, 1.1, 4);
       armGeom.rotateZ(dir * (Math.PI / 3));
@@ -742,27 +824,20 @@ export class Terrain {
     return group;
   }
 
-  /**
-   * Builds an aerodynamic snow kicker ramp
-   */
   createKickerRamp() {
     const rampGeom = new THREE.BoxGeometry(4.2, 0.9, 3.5);
     const mesh = new THREE.Mesh(rampGeom, this.rampMat);
-    mesh.rotation.x = 0.28; // tilted wedge facing downhill
+    mesh.rotation.x = 0.28;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     return mesh;
   }
 
-  /**
-   * Builds a pair of slalom flags (Red or Blue)
-   */
   createSlalomGate(isRed) {
     const group = new THREE.Group();
     const flagMat = isRed ? this.flagRedMat : this.flagBlueMat;
     const gateWidth = 5.5;
 
-    // Left & Right poles
     [-gateWidth * 0.5, gateWidth * 0.5].forEach((px) => {
       const poleGeom = new THREE.CylinderGeometry(0.06, 0.06, 2.6, 6);
       const pole = new THREE.Mesh(poleGeom, this.poleMat);
@@ -770,11 +845,10 @@ export class Terrain {
       pole.castShadow = true;
       group.add(pole);
 
-      // Pennant flag
       const flagGeom = new THREE.PlaneGeometry(0.8, 0.5);
       const flag = new THREE.Mesh(flagGeom, flagMat);
       flag.position.set(px + 0.4, 2.1, 0);
-      flag.rotation.y = Math.PI * 0.15; // slight flutter
+      flag.rotation.y = Math.PI * 0.15;
       group.add(flag);
     });
 
@@ -787,25 +861,48 @@ export class Terrain {
 
   /**
    * Recycles oldest terrain chunk when rider progresses forward.
-   * Updates coin continuous rotation and floating hover animations.
+   * Updates coin, nitro, and checkpoint animations.
    */
   update(delta, playerZ) {
-    // 1. Animate active coins (Spin & Bob)
     const time = Date.now() * 0.003;
+
+    // 1. Animate active coins (Spin & Bob)
     for (let i = 0; i < this.activeCoins.length; i++) {
       const coin = this.activeCoins[i];
       if (!coin.collected) {
         coin.mesh.rotation.y += 3.6 * delta;
         coin.mesh.position.y = coin.baseY + Math.sin(time + coin.phase) * 0.18;
       } else if (coin.scaleAnim > 0.05) {
-        // Collection pop animation
         coin.scaleAnim -= 5.0 * delta;
         coin.mesh.scale.setScalar(Math.max(0.01, coin.scaleAnim * 1.5));
         coin.mesh.position.y += 3.5 * delta;
       }
     }
 
-    // 2. Chunk recycling
+    // 2. Animate active nitro pickups (Fast spin & ring orbit)
+    for (let i = 0; i < this.activeNitros.length; i++) {
+      const nitro = this.activeNitros[i];
+      if (!nitro.collected) {
+        nitro.mesh.rotation.y += 4.5 * delta;
+        nitro.ringMesh.rotation.x += 3.2 * delta;
+        nitro.ringMesh.rotation.z += 2.0 * delta;
+        nitro.mesh.position.y = nitro.baseY + Math.sin(time * 1.5 + nitro.phase) * 0.22;
+      } else if (nitro.scaleAnim > 0.05) {
+        nitro.scaleAnim -= 5.0 * delta;
+        nitro.mesh.scale.setScalar(Math.max(0.01, nitro.scaleAnim * 1.8));
+        nitro.mesh.position.y += 4.5 * delta;
+      }
+    }
+
+    // 3. Animate checkpoint gates (curtain beam pulse)
+    for (let i = 0; i < this.activeCheckpoints.length; i++) {
+      const cp = this.activeCheckpoints[i];
+      if (cp.beamMesh) {
+        cp.beamMesh.material.opacity = 0.28 + Math.sin(time * 2.5) * 0.15;
+      }
+    }
+
+    // 4. Chunk recycling
     if (this.chunks.length > 0) {
       const firstChunk = this.chunks[0];
       if (playerZ > firstChunk.zEnd + 30) {
@@ -825,18 +922,30 @@ export class Terrain {
         });
         firstChunk.coins = [];
 
+        // Clean up checkpoints
+        firstChunk.checkpoints.forEach((cp) => {
+          if (cp.mesh) this.scene.remove(cp.mesh);
+          const pIdx = this.activeCheckpoints.indexOf(cp);
+          if (pIdx !== -1) this.activeCheckpoints.splice(pIdx, 1);
+        });
+        firstChunk.checkpoints = [];
+
+        // Clean up nitro pickups
+        firstChunk.nitros.forEach((nitro) => {
+          if (nitro.mesh) this.scene.remove(nitro.mesh);
+          const nIdx = this.activeNitros.indexOf(nitro);
+          if (nIdx !== -1) this.activeNitros.splice(nIdx, 1);
+        });
+        firstChunk.nitros = [];
+
         // Reposition chunk to front
         firstChunk.zStart = this.nextChunkZ;
         firstChunk.zEnd = this.nextChunkZ + this.CHUNK_LENGTH;
         this.nextChunkZ += this.CHUNK_LENGTH;
 
-        // Recompute vertices seamlessly
         this.updateChunkVertices(firstChunk);
-
-        // Spawn new world elements
         this.spawnChunkWorld(firstChunk);
 
-        // Rotate chunk array
         this.chunks.shift();
         this.chunks.push(firstChunk);
       }
@@ -845,7 +954,6 @@ export class Terrain {
 
   /**
    * Checks coin collection around player
-   * Awards 10 coins + 50 points per coin, collected only once.
    */
   checkCoinCollisions(playerPos, collectionRadius = 1.35) {
     const px = playerPos.x;
@@ -880,8 +988,72 @@ export class Terrain {
   }
 
   /**
+   * Checks Nitro pickup collection around player
+   */
+  checkNitroCollisions(playerPos, collectionRadius = 1.45) {
+    const px = playerPos.x;
+    const py = playerPos.y;
+    const pz = playerPos.z;
+
+    for (let i = 0; i < this.activeNitros.length; i++) {
+      const nitro = this.activeNitros[i];
+      if (nitro.collected) continue;
+
+      const dz = nitro.z - pz;
+      if (Math.abs(dz) > 2.5) continue;
+
+      const dx = nitro.x - px;
+      const dy = nitro.mesh.position.y - py;
+      const distSq = dx * dx + dy * dy + dz * dz;
+
+      const hitDist = collectionRadius + 0.7;
+      if (distSq < hitDist * hitDist) {
+        nitro.collected = true;
+        return {
+          collected: true,
+          nitro,
+          duration: 4.0,
+          position: nitro.mesh.position.clone()
+        };
+      }
+    }
+
+    return { collected: false };
+  }
+
+  /**
+   * Checks if player passed through a Checkpoint Gate
+   */
+  checkCheckpointCollisions(playerPos) {
+    const px = playerPos.x;
+    const pz = playerPos.z;
+
+    for (let i = 0; i < this.activeCheckpoints.length; i++) {
+      const cp = this.activeCheckpoints[i];
+      if (cp.passed) continue;
+
+      const dz = cp.z - pz;
+      if (Math.abs(dz) < 1.8) {
+        const dx = Math.abs(px - cp.x);
+        if (dx < cp.width * 0.5) {
+          cp.passed = true;
+          return {
+            passed: true,
+            checkpoint: cp,
+            points: 250,
+            x: cp.x,
+            y: cp.y,
+            z: cp.z
+          };
+        }
+      }
+    }
+
+    return { passed: false };
+  }
+
+  /**
    * Collision check against nearby obstacles
-   * Returns { hit: boolean, obstacle: object | null, type: string }
    */
   checkCollisions(playerPos, playerRadius = 0.55) {
     const px = playerPos.x;
@@ -892,13 +1064,12 @@ export class Terrain {
       const obs = this.activeObstacles[i];
       const dz = obs.z - pz;
 
-      // Only check obstacles in close range
       if (Math.abs(dz) > 5) continue;
 
       const dx = obs.x - px;
       const distSq = dx * dx + dz * dz;
 
-      // 1. Solid obstacles: Pine Trees, Rocks, Ice Blocks, Snowmen
+      // 1. Solid obstacles
       if (obs.type === 'tree' || obs.type === 'rock' || obs.type === 'ice' || obs.type === 'snowman') {
         const minRadius = obs.radius + playerRadius;
         if (distSq < minRadius * minRadius) {
@@ -906,21 +1077,19 @@ export class Terrain {
         }
       }
 
-      // 2. Fallen Log: Horizontal barrier check
+      // 2. Fallen Log
       if (obs.type === 'log') {
         const halfW = obs.width * 0.5;
-        // Check if player is within log width and depth
         if (Math.abs(dx) < (halfW + playerRadius) && Math.abs(dz) < (obs.radius + playerRadius)) {
-          // If player is airborne jumping high above the log, they clear it!
           if (py > obs.y + 0.9) {
-            // Jumped over log safely!
+            // Cleared log by jumping
           } else {
             return { hit: true, type: 'crash', obstacle: obs, cause: 'fallen log' };
           }
         }
       }
 
-      // 3. Snow kicker ramp launch
+      // 3. Snow kicker ramp
       if (obs.type === 'ramp') {
         const rampDist = obs.radius + playerRadius;
         if (distSq < rampDist * rampDist) {
@@ -928,7 +1097,7 @@ export class Terrain {
         }
       }
 
-      // 4. Slalom gate clear
+      // 4. Slalom gate
       if (obs.type === 'gate' && !obs.passed) {
         if (Math.abs(dz) < 1.2 && Math.abs(dx) < (obs.width * 0.5)) {
           obs.passed = true;
@@ -944,25 +1113,32 @@ export class Terrain {
    * Resets terrain to clean initial state for fresh run
    */
   reset() {
-    // Clear all existing obstacles
     this.activeObstacles.forEach((obs) => {
       if (obs.mesh) this.scene.remove(obs.mesh);
     });
     this.activeObstacles = [];
 
-    // Clear all existing coins
     this.activeCoins.forEach((coin) => {
       if (coin.mesh) this.scene.remove(coin.mesh);
     });
     this.activeCoins = [];
 
-    // Remove existing chunks
+    this.activeCheckpoints.forEach((cp) => {
+      if (cp.mesh) this.scene.remove(cp.mesh);
+    });
+    this.activeCheckpoints = [];
+
+    this.activeNitros.forEach((nitro) => {
+      if (nitro.mesh) this.scene.remove(nitro.mesh);
+    });
+    this.activeNitros = [];
+
     this.chunks.forEach((chunk) => {
       if (chunk.mesh) this.scene.remove(chunk.mesh);
     });
     this.chunks = [];
 
-    // Rebuild initial chunks
+    this.checkpointCount = 0;
     this.nextChunkZ = -this.CHUNK_LENGTH;
     for (let i = 0; i < this.CHUNK_COUNT; i++) {
       this.createChunk();

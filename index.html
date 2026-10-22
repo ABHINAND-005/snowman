@@ -73,6 +73,25 @@
         </div>
       </div>
 
+      <!-- Nitro Boost Gauge Card -->
+      <div id="hud-nitro-card" class="hud-card nitro-card hidden">
+        <div class="nitro-header">
+          <span class="hud-label cyan-glow">NITRO BOOST</span>
+          <span id="hud-nitro-timer" class="nitro-timer">4.0s</span>
+        </div>
+        <div class="nitro-value-row">
+          <span class="nitro-icon">⚡</span>
+          <div class="nitro-bar-track">
+            <div id="nitro-bar-fill" class="nitro-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shield / Invulnerability Indicator -->
+      <div id="hud-shield-badge" class="shield-badge hidden">
+        <span>🛡️ RESPAWN SHIELD</span>
+      </div>
+
       <!-- Controls / Audio Bar in Top Right -->
       <div class="hud-actions">
         <button id="btn-audio-toggle" class="btn-icon" title="Toggle Sound" aria-label="Toggle Sound">
@@ -196,6 +215,8 @@
         <div class="guide-tips">
           <h4>PRO TIPS</h4>
           <ul>
+            <li>🏁 <strong>Checkpoints:</strong> Pass glowing blue gates for +250 pts and a safe respawn anchor.</li>
+            <li>⚡ <strong>Nitro Boost:</strong> Grab glowing cyan canisters for a 4-second supersonic speed rush!</li>
             <li>🪙 <strong>Gold Coins:</strong> Gather glowing coin lines & arcs for +10 coins and +50 points each.</li>
             <li>🎯 <strong>Slalom Gates:</strong> Pass between red and blue flags for +500 bonus points each.</li>
             <li>🚀 <strong>Snow Kickers:</strong> Hit natural snow ramps at high speed for enormous jump air-time.</li>
@@ -235,6 +256,10 @@
       <div class="menu-actions">
         <button id="btn-resume" class="btn btn-primary">
           <span class="btn-text">RESUME RUN</span>
+        </button>
+        <button id="btn-restart-checkpoint" class="btn btn-checkpoint hidden">
+          <span class="btn-text">RESPAWN AT CHECKPOINT</span>
+          <span class="btn-icon-right">⚡</span>
         </button>
         <button id="btn-restart-pause" class="btn btn-secondary">
           <span>RESTART RUN</span>
@@ -298,6 +323,10 @@
 
       <!-- Action Buttons -->
       <div class="menu-actions">
+        <button id="btn-checkpoint-respawn" class="btn btn-checkpoint hidden">
+          <span class="btn-text">RESPAWN AT CHECKPOINT</span>
+          <span class="btn-icon-right">⚡</span>
+        </button>
         <button id="btn-retry" class="btn btn-primary">
           <span class="btn-glow"></span>
           <span class="btn-text">TRY AGAIN</span>

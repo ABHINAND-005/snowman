@@ -31,6 +31,7 @@ class Game {
     this.lastCoinTime = 0;
     this.maxSpeed = 0;
     this.scoreMultiplier = 1.0;
+    this.latestCheckpoint = null;
 
     // Three.js Core Components
     this.canvas = document.getElementById('webgl-canvas');
@@ -121,7 +122,11 @@ class Game {
         this.togglePause();
         e.preventDefault();
       } else if (e.code === 'KeyR') {
-        this.startRun();
+        if (this.state === GameState.GAMEOVER && this.latestCheckpoint) {
+          this.respawnAtCheckpoint();
+        } else {
+          this.startRun();
+        }
         e.preventDefault();
       }
 
@@ -230,6 +235,23 @@ class Game {
       });
     }
 
+    // Checkpoint Respawn Buttons
+    const btnRestartCheckpoint = document.getElementById('btn-restart-checkpoint');
+    if (btnRestartCheckpoint) {
+      btnRestartCheckpoint.addEventListener('click', () => {
+        this.sound.playClick();
+        this.respawnAtCheckpoint();
+      });
+    }
+
+    const btnCheckpointRespawn = document.getElementById('btn-checkpoint-respawn');
+    if (btnCheckpointRespawn) {
+      btnCheckpointRespawn.addEventListener('click', () => {
+        this.sound.playClick();
+        this.respawnAtCheckpoint();
+      });
+    }
+
     // Audio Mute Toggle
     const btnAudio = document.getElementById('btn-audio-toggle');
     if (btnAudio) {
@@ -253,6 +275,7 @@ class Game {
     this.lastCoinTime = 0;
     this.maxSpeed = 0;
     this.cameraShake = 0;
+    this.latestCheckpoint = null;
 
     // Reset terrain and player position to mountain summit
     this.terrain.reset();
@@ -261,8 +284,28 @@ class Game {
     // Audio cue
     this.sound.playStartFanfare();
 
-    // Show HUD
+    // Show HUD & reset overlays
+    this.ui.setCheckpointAvailable(false);
+    this.ui.updateNitro(false, 0);
+    this.ui.updateShield(false);
     this.ui.showPlaying();
+  }
+
+  /**
+   * Respawns rider at the latest reached checkpoint gate with collision protection
+   */
+  respawnAtCheckpoint() {
+    if (!this.latestCheckpoint) {
+      this.startRun();
+      return;
+    }
+    this.state = GameState.PLAYING;
+    this.player.respawnAt(this.latestCheckpoint);
+    this.distance = Math.max(0, this.player.position.z);
+    this.sound.playCheckpoint();
+    this.ui.showPlaying();
+    this.ui.updateShield(true);
+    this.clock.getDelta(); // Clear delta accumulator
   }
 
   /**
@@ -272,7 +315,7 @@ class Game {
     if (this.state === GameState.PLAYING) {
       this.state = GameState.PAUSED;
       this.sound.silenceLoops();
-      this.ui.showPause(this.distance, this.score, this.coins);
+      this.ui.showPause(this.distance, this.score, this.coins, Boolean(this.latestCheckpoint));
     } else if (this.state === GameState.PAUSED) {
       this.state = GameState.PLAYING;
       this.ui.hidePause();
@@ -312,7 +355,8 @@ class Game {
           coins: this.coins,
           maxSpeed: this.maxSpeed,
           airtime: this.player.totalAirTime,
-          cause
+          cause,
+          hasCheckpoint: Boolean(this.latestCheckpoint)
         });
       }
     }, 1100);
@@ -346,9 +390,10 @@ class Game {
       return;
     }
 
-    // Dynamic FOV based on speed (widens for rush feeling)
-    const targetFOV = 62 + Math.min((pSpeed / 28) * 14, 15);
-    this.camera.fov += (targetFOV - this.camera.fov) * 4.0 * delta;
+    // Dynamic FOV based on speed and nitro boost (widens for rush feeling)
+    const nitroBonusFOV = this.player.isNitro ? 14 : 0;
+    const targetFOV = 62 + Math.min((pSpeed / 28) * 12, 14) + nitroBonusFOV;
+    this.camera.fov += (targetFOV - this.camera.fov) * 5.0 * delta;
     this.camera.updateProjectionMatrix();
 
     // Target camera location behind and above rider
@@ -411,6 +456,8 @@ class Game {
 
       // Update HUD telemetry
       this.ui.updateHUD(this.distance, this.score, speedKmH, this.player.isTucking, this.coins);
+      this.ui.updateNitro(this.player.isNitro, this.player.nitroTimer, 4.0);
+      this.ui.updateShield(this.player.isInvulnerable);
 
       // Emit snow spray particles when carving or sliding
       if (this.player.isGrounded) {
@@ -422,6 +469,11 @@ class Game {
             lateralSpeed / this.player.turnSpeed
           );
         }
+      }
+
+      // Emit supersonic rocket flame particles during nitro boost
+      if (this.player.isNitro) {
+        this.environment.emitNitroThruster(this.player.position, this.player.lateralVelocity);
       }
 
       // 3. Coin Collection Check
@@ -450,11 +502,38 @@ class Game {
         this.lastCoinTime = now;
       }
 
-      // 4. Collision Detection with obstacles
+      // 3b. Nitro Boost Pickup Collection Check
+      const nitroHit = this.terrain.checkNitroCollisions(this.player.position, 1.45);
+      if (nitroHit.collected) {
+        this.player.activateNitro(nitroHit.duration || 4.0);
+        this.sound.playNitroBoost();
+        this.environment.emitCoinSparkles(nitroHit.position);
+        window.dispatchEvent(new CustomEvent('snowman_nitro'));
+      }
+
+      // 3c. Checkpoint Gate Collision Check
+      const cpHit = this.terrain.checkCheckpointCollisions(this.player.position);
+      if (cpHit.passed) {
+        this.latestCheckpoint = {
+          x: cpHit.x,
+          y: cpHit.y,
+          z: cpHit.z
+        };
+        this.score += cpHit.points;
+        this.sound.playCheckpoint();
+        this.ui.setCheckpointAvailable(true);
+        window.dispatchEvent(new CustomEvent('snowman_checkpoint', {
+          detail: { bonus: cpHit.points }
+        }));
+      }
+
+      // 4. Collision Detection with obstacles (Bypassed if invulnerable)
       const collision = this.terrain.checkCollisions(this.player.position, 0.55);
       if (collision.hit) {
         if (collision.type === 'crash') {
-          this.handleCrash(collision.obstacle, collision.cause);
+          if (!this.player.isInvulnerable) {
+            this.handleCrash(collision.obstacle, collision.cause);
+          }
         } else if (collision.type === 'ramp') {
           // Launch rider off snow kicker ramp
           this.player.isGrounded = false;

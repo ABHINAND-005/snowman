@@ -24,6 +24,7 @@ export class Environment {
     this.initFallingSnow();
     this.initSnowSprayPool();
     this.initCoinSparklesPool();
+    this.initNitroThrusterPool();
     this.initSpeedLines();
   }
 
@@ -359,6 +360,81 @@ export class Environment {
   }
 
   /**
+   * Initializes zero-allocation particle pool for supersonic Nitro thruster flames
+   */
+  initNitroThrusterPool() {
+    this.maxNitroParticles = 80;
+    this.nitroIndex = 0;
+
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(this.maxNitroParticles * 3);
+    const colors = new Float32Array(this.maxNitroParticles * 3);
+    const sizes = new Float32Array(this.maxNitroParticles);
+
+    for (let i = 0; i < this.maxNitroParticles; i++) {
+      positions[i * 3 + 1] = -9999;
+      // Electric cyan / azure glow colors
+      colors[i * 3] = 0.0;
+      colors[i * 3 + 1] = 0.94;
+      colors[i * 3 + 2] = 1.0;
+      sizes[i] = 0;
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    const material = new THREE.PointsMaterial({
+      size: 2.2,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    this.nitroMesh = new THREE.Points(geometry, material);
+    this.scene.add(this.nitroMesh);
+
+    this.nitroPool = [];
+    for (let i = 0; i < this.maxNitroParticles; i++) {
+      this.nitroPool.push({
+        active: false,
+        x: 0, y: -9999, z: 0,
+        vx: 0, vy: 0, vz: 0,
+        life: 0,
+        maxLife: 0.45,
+        size: 2.2
+      });
+    }
+  }
+
+  /**
+   * Emits rocket thruster flame exhaust behind the snowboard during nitro boost
+   */
+  emitNitroThruster(pos, lateralVel) {
+    const burstCount = 4;
+    for (let b = 0; b < burstCount; b++) {
+      const p = this.nitroPool[this.nitroIndex];
+      p.active = true;
+      p.life = 0;
+      p.maxLife = 0.28 + Math.random() * 0.18;
+      // Emit from tail of the board
+      p.x = pos.x + (Math.random() - 0.5) * 0.35;
+      p.y = pos.y + 0.12 + Math.random() * 0.15;
+      p.z = pos.z - 1.1 + (Math.random() - 0.5) * 0.2;
+
+      // Shoot backward with violent velocity
+      p.vx = -lateralVel * 0.2 + (Math.random() - 0.5) * 1.5;
+      p.vy = 0.5 + Math.random() * 1.2;
+      p.vz = -(12.0 + Math.random() * 16.0);
+      p.size = 2.4 + Math.random() * 1.8;
+
+      this.nitroIndex = (this.nitroIndex + 1) % this.maxNitroParticles;
+    }
+  }
+
+  /**
    * Speed lines system for high speed sensation
    */
   initSpeedLines() {
@@ -531,6 +607,39 @@ export class Environment {
             // Sparkle twinkle
             const lifeRatio = 1 - (p.life / p.maxLife);
             sizes[i] = p.size * lifeRatio * (0.8 + Math.sin(p.life * 25) * 0.2);
+          }
+        }
+      }
+      posAttr.needsUpdate = true;
+      sizeAttr.needsUpdate = true;
+    }
+
+    // 4c. Update Nitro Thruster Particles
+    if (this.nitroMesh) {
+      const posAttr = this.nitroMesh.geometry.attributes.position;
+      const sizeAttr = this.nitroMesh.geometry.attributes.size;
+      const positions = posAttr.array;
+      const sizes = sizeAttr.array;
+
+      for (let i = 0; i < this.maxNitroParticles; i++) {
+        const p = this.nitroPool[i];
+        if (p.active) {
+          p.life += delta;
+          if (p.life >= p.maxLife) {
+            p.active = false;
+            positions[i * 3 + 1] = -9999;
+            sizes[i] = 0;
+          } else {
+            p.x += p.vx * delta;
+            p.y += p.vy * delta;
+            p.z += p.vz * delta;
+
+            positions[i * 3] = p.x;
+            positions[i * 3 + 1] = p.y;
+            positions[i * 3 + 2] = p.z;
+
+            const lifeRatio = 1 - (p.life / p.maxLife);
+            sizes[i] = p.size * lifeRatio;
           }
         }
       }

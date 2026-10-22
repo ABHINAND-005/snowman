@@ -19,6 +19,16 @@ export class UIManager {
     this.toastContainer = document.getElementById('hud-toast-container');
     this.coinCard = document.querySelector('.coin-card');
 
+    // Nitro & Shield HUD elements
+    this.nitroCard = document.getElementById('hud-nitro-card');
+    this.nitroTimer = document.getElementById('hud-nitro-timer');
+    this.nitroBarFill = document.getElementById('nitro-bar-fill');
+    this.shieldBadge = document.getElementById('hud-shield-badge');
+
+    // Checkpoint Respawn buttons
+    this.btnRestartCheckpoint = document.getElementById('btn-restart-checkpoint');
+    this.btnCheckpointRespawn = document.getElementById('btn-checkpoint-respawn');
+
     // Audio & Pause HUD icons
     this.btnAudioToggle = document.getElementById('btn-audio-toggle');
     this.iconSoundOn = document.getElementById('icon-sound-on');
@@ -69,6 +79,12 @@ export class UIManager {
     });
     window.addEventListener('snowman_coincombo', (e) => {
       this.showToast(`🪙 COIN COMBO +${e.detail.bonus}!`);
+    });
+    window.addEventListener('snowman_checkpoint', (e) => {
+      this.showToast(`⚡ CHECKPOINT REACHED +${e.detail.bonus}!`);
+    });
+    window.addEventListener('snowman_nitro', () => {
+      this.showToast('🚀 NITRO BOOST ENGAGED!');
     });
   }
 
@@ -149,6 +165,57 @@ export class UIManager {
   }
 
   /**
+   * Updates Nitro Boost HUD meter and timer
+   */
+  updateNitro(isNitro, timeLeft, maxDuration = 4.0) {
+    if (!this.nitroCard) return;
+    if (isNitro && timeLeft > 0) {
+      this.nitroCard.classList.remove('hidden');
+      if (this.nitroTimer) {
+        this.nitroTimer.textContent = `${timeLeft.toFixed(1)}s`;
+      }
+      if (this.nitroBarFill) {
+        const pct = Math.min(100, Math.max(0, (timeLeft / maxDuration) * 100));
+        this.nitroBarFill.style.width = `${pct}%`;
+      }
+    } else {
+      this.nitroCard.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Updates Respawn Shield badge
+   */
+  updateShield(isInvulnerable) {
+    if (!this.shieldBadge) return;
+    if (isInvulnerable) {
+      this.shieldBadge.classList.remove('hidden');
+    } else {
+      this.shieldBadge.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Toggles visibility of Checkpoint Respawn buttons on Pause & Game Over screens
+   */
+  setCheckpointAvailable(available) {
+    if (this.btnRestartCheckpoint) {
+      if (available) {
+        this.btnRestartCheckpoint.classList.remove('hidden');
+      } else {
+        this.btnRestartCheckpoint.classList.add('hidden');
+      }
+    }
+    if (this.btnCheckpointRespawn) {
+      if (available) {
+        this.btnCheckpointRespawn.classList.remove('hidden');
+      } else {
+        this.btnCheckpointRespawn.classList.add('hidden');
+      }
+    }
+  }
+
+  /**
    * Screen transition: Show Main Menu
    */
   showMenu() {
@@ -157,6 +224,9 @@ export class UIManager {
     this.pauseOverlay.classList.add('hidden');
     this.gameoverOverlay.classList.add('hidden');
     this.howToPlayModal.classList.add('hidden');
+    this.updateNitro(false, 0);
+    this.updateShield(false);
+    this.setCheckpointAvailable(false);
     this.updateMenuRecords();
   }
 
@@ -174,12 +244,19 @@ export class UIManager {
   /**
    * Screen transition: Show Pause Overlay
    */
-  showPause(distance, score, coins = 0) {
+  showPause(distance, score, coins = 0, hasCheckpoint = false) {
     this.pauseOverlay.classList.remove('hidden');
     this.hud.classList.remove('hidden');
     if (this.pauseDistance) this.pauseDistance.textContent = `${Math.floor(distance).toLocaleString()} m`;
     if (this.pauseScore) this.pauseScore.textContent = `${Math.floor(score).toLocaleString()} pts`;
     if (this.pauseCoins) this.pauseCoins.textContent = `🪙 ${coins.toLocaleString()}`;
+    if (this.btnRestartCheckpoint) {
+      if (hasCheckpoint) {
+        this.btnRestartCheckpoint.classList.remove('hidden');
+      } else {
+        this.btnRestartCheckpoint.classList.add('hidden');
+      }
+    }
   }
 
   /**
@@ -209,6 +286,14 @@ export class UIManager {
     if (this.goSpeed) this.goSpeed.textContent = maxSpeed;
     if (this.goAirtime) this.goAirtime.textContent = airtime;
     if (this.gameoverCause) this.gameoverCause.textContent = cause;
+
+    if (this.btnCheckpointRespawn) {
+      if (stats.hasCheckpoint) {
+        this.btnCheckpointRespawn.classList.remove('hidden');
+      } else {
+        this.btnCheckpointRespawn.classList.add('hidden');
+      }
+    }
 
     // Add collected coins to total bank
     this.totalCoins += coins;

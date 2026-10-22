@@ -16,7 +16,9 @@ export class Player {
     this.speed = 12; // Initial forward speed (m/s)
     this.baseMaxSpeed = 20; // ~72 km/h standard glide
     this.tuckedMaxSpeed = 28; // ~100 km/h in aero tuck
+    this.nitroMaxSpeed = 34; // ~122 km/h in supersonic nitro boost
     this.acceleration = 7.5; // Downhill gravity pull
+    this.nitroAcceleration = 18.0; // Rapid nitro thruster pull
     this.turnSpeed = 16.0; // Lateral carving agility
     this.jumpForce = 13.5; // Vertical jump impulse (m/s)
     this.gravity = 28.0; // Snappy arcade gravity
@@ -29,6 +31,10 @@ export class Player {
     this.isGrounded = true;
     this.isTucking = false;
     this.isJumping = false;
+    this.isNitro = false;
+    this.nitroTimer = 0;
+    this.isInvulnerable = false;
+    this.invulnerableTimer = 0;
     this.airTime = 0;
     this.totalAirTime = 0;
     this.isCrashed = false;
@@ -248,6 +254,18 @@ export class Player {
     this.riderGroup.add(this.torsoGroup);
 
     this.mesh.add(this.riderGroup);
+
+    // Ethereal Respawn Collision Shield
+    const shieldGeom = new THREE.SphereGeometry(1.4, 14, 14);
+    const shieldMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0,
+      wireframe: true
+    });
+    this.shieldSphere = new THREE.Mesh(shieldGeom, shieldMat);
+    this.shieldSphere.position.y = 1.0;
+    this.mesh.add(this.shieldSphere);
   }
 
   /**
@@ -266,6 +284,10 @@ export class Player {
     this.isCrashed = false;
     this.isStumbling = false;
     this.stumbleTimer = 0;
+    this.isNitro = false;
+    this.nitroTimer = 0;
+    this.isInvulnerable = false;
+    this.invulnerableTimer = 0;
     this.carveRoll = 0;
     this.tuckProgress = 0;
     this.landingSquat = 0;
@@ -277,6 +299,54 @@ export class Player {
     this.torsoGroup.position.set(0, 0.78, 0);
     this.torsoGroup.rotation.set(0, 0, 0);
     this.riderGroup.rotation.set(0, Math.PI * 0.28, 0);
+    if (this.shieldSphere) this.shieldSphere.material.opacity = 0;
+  }
+
+  /**
+   * Activates supersonic nitro speed boost
+   * @param {number} duration - Seconds of boost (default 4.0s)
+   */
+  activateNitro(duration = 4.0) {
+    this.isNitro = true;
+    this.nitroTimer = duration;
+  }
+
+  /**
+   * Activates collision immunity shield (e.g. after respawning at checkpoint)
+   * @param {number} duration - Seconds of invulnerability (default 3.0s)
+   */
+  activateShield(duration = 3.0) {
+    this.isInvulnerable = true;
+    this.invulnerableTimer = duration;
+  }
+
+  /**
+   * Respawns the player safely at a checkpoint anchor with collision protection
+   */
+  respawnAt(checkpoint) {
+    const groundY = this.terrain.getHeight(checkpoint.x, checkpoint.z);
+    this.position.set(checkpoint.x, groundY, checkpoint.z);
+    this.velocity.set(0, 0, 14);
+    this.lateralVelocity = 0;
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.isCrashed = false;
+    this.isStumbling = false;
+    this.isJumping = false;
+    this.airTime = 0;
+    this.isNitro = false;
+    this.nitroTimer = 0;
+
+    // Reset mesh transforms
+    this.mesh.position.copy(this.position);
+    this.mesh.rotation.set(0, 0, 0);
+    this.boardGroup.rotation.set(0, 0, 0);
+    this.torsoGroup.position.set(0, 0.78, 0);
+    this.torsoGroup.rotation.set(0, 0, 0);
+    this.riderGroup.rotation.set(0, Math.PI * 0.28, 0);
+
+    // Short collision-protection shield
+    this.activateShield(3.0);
   }
 
   /**
@@ -363,17 +433,48 @@ export class Player {
     }
 
     // -------------------------------------------------------------
-    // 2. Tucking & Speed Acceleration
+    // 2. Nitro, Tucking & Speed Acceleration
     // -------------------------------------------------------------
+    if (this.isNitro) {
+      this.nitroTimer -= delta;
+      if (this.nitroTimer <= 0) {
+        this.isNitro = false;
+        this.nitroTimer = 0;
+      }
+    }
+
+    // Handle Collision Immunity Shield Timer
+    if (this.isInvulnerable) {
+      this.invulnerableTimer -= delta;
+      if (this.invulnerableTimer <= 0) {
+        this.isInvulnerable = false;
+        this.invulnerableTimer = 0;
+        if (this.shieldSphere) this.shieldSphere.material.opacity = 0;
+      } else if (this.shieldSphere) {
+        this.shieldSphere.material.opacity = 0.35 + Math.sin(Date.now() * 0.02) * 0.25;
+      }
+    } else if (this.shieldSphere) {
+      this.shieldSphere.material.opacity = 0;
+    }
+
     this.isTucking = this.keys.tuck;
-    const targetMaxSpeed = this.isTucking ? this.tuckedMaxSpeed : this.baseMaxSpeed;
+
+    let targetMaxSpeed = this.baseMaxSpeed;
+    let accelRate = this.acceleration;
+
+    if (this.isNitro) {
+      targetMaxSpeed = this.nitroMaxSpeed;
+      accelRate = this.nitroAcceleration;
+    } else if (this.isTucking) {
+      targetMaxSpeed = this.tuckedMaxSpeed;
+      accelRate = this.acceleration * 1.4;
+    }
 
     // Downhill acceleration
     if (this.velocity.z < targetMaxSpeed) {
-      const accelRate = this.isTucking ? this.acceleration * 1.4 : this.acceleration;
       this.velocity.z = Math.min(this.velocity.z + accelRate * delta, targetMaxSpeed);
     } else if (this.velocity.z > targetMaxSpeed) {
-      // Gentle air resistance deceleration when releasing tuck
+      // Gentle air resistance deceleration when releasing tuck or nitro
       this.velocity.z -= 6.0 * delta;
     }
 
