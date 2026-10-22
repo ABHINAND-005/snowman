@@ -162,6 +162,11 @@
           <span class="record-label">TOTAL COINS</span>
           <span id="menu-total-coins" class="record-value gold-glow">🪙 0</span>
         </div>
+        <div class="record-divider"></div>
+        <div class="record-item">
+          <span class="record-label">TOTAL RUNS</span>
+          <span id="menu-total-runs" class="record-value">0</span>
+        </div>
       </div>
 
       <!-- Action Buttons -->
@@ -300,9 +305,14 @@
         <p id="gameover-cause" class="gameover-subtitle">Crashed into an obstacle</p>
       </div>
 
-      <!-- New Record Alert Badge (if achieved) -->
+      <!-- NEW HIGH SCORE Badge (score record) -->
+      <div id="new-high-score-badge" class="new-high-score-badge hidden">
+        <span>🏆 NEW HIGH SCORE!</span>
+      </div>
+
+      <!-- New Distance Record Alert Badge (distance record without score record) -->
       <div id="new-record-badge" class="new-record-badge hidden">
-        <span>🏆 NEW PERSONAL RECORD!</span>
+        <span>🏅 NEW DISTANCE RECORD!</span>
       </div>
 
       <!-- Run Summary Stats Grid -->
@@ -320,7 +330,7 @@
         <div class="summary-box">
           <span class="summary-label">COINS COLLECTED</span>
           <span id="go-coins" class="summary-number gold-text">0</span>
-          <span class="summary-unit">coins (+0 pts)</span>
+          <span class="summary-unit">this run</span>
         </div>
         <div class="summary-box">
           <span class="summary-label">MAX SPEED</span>
@@ -337,6 +347,27 @@
           <span id="go-total-coins" class="summary-number gold-text">🪙 0</span>
           <span class="summary-unit">all-time coins</span>
         </div>
+        <div class="summary-box">
+          <span class="summary-label">CHECKPOINTS</span>
+          <span id="go-checkpoints" class="summary-number cyan-text">0</span>
+          <span class="summary-unit">gates passed</span>
+        </div>
+        <div class="summary-box">
+          <span class="summary-label">TRICKS LANDED</span>
+          <span id="go-tricks" class="summary-number cyan-text">0</span>
+          <span class="summary-unit">clean landings</span>
+        </div>
+        <div class="summary-box">
+          <span class="summary-label">HIGH SCORE</span>
+          <span id="go-high-score" class="summary-number score-text">0</span>
+          <span class="summary-unit">all-time best</span>
+        </div>
+      </div>
+
+      <!-- Total Runs Footer -->
+      <div class="go-runs-footer">
+        <span class="go-runs-label">TOTAL RUNS COMPLETED:</span>
+        <span id="go-total-runs" class="go-runs-value">0</span>
       </div>
 
       <!-- Action Buttons -->
@@ -347,7 +378,7 @@
         </button>
         <button id="btn-retry" class="btn btn-primary">
           <span class="btn-glow"></span>
-          <span class="btn-text">TRY AGAIN</span>
+          <span class="btn-text">PLAY AGAIN</span>
           <span class="btn-icon-right">↻</span>
         </button>
         <button id="btn-menu-return" class="btn btn-secondary">

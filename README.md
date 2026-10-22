@@ -3,9 +3,9 @@
 [![Three.js](https://img.shields.io/badge/Three.js-r160-00f0ff?logo=three.js)](https://threejs.org/)
 [![Web Audio API](https://img.shields.io/badge/Audio-Web_Audio_API-ffd166)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 [![License: MIT](https://img.shields.io/badge/License-MIT-48cae4.svg)](LICENSE)
-[![Phase](https://img.shields.io/badge/Status-Phase_4_Complete-00F0FF)](#development-roadmap)
+[![Phase](https://img.shields.io/badge/Status-Phase_5_Complete-00F0FF)](#development-roadmap)
 
-An exhilarating 3D browser-based downhill snowboarding game built with **Three.js** and procedural **Web Audio API**. Carve down endless snowy peaks, dodge mountain obstacles, gather glowing gold coins, rocket through nitro boosts, and catch massive air off natural snow kickers.
+An exhilarating 3D browser-based downhill snowboarding game built with **Three.js** and procedural **Web Audio API**. Carve down endless snowy peaks, dodge mountain obstacles, gather glowing gold coins, rocket through nitro boosts, catch massive air off natural snow kickers, and build a persistent run history tracked across sessions.
 
 ---
 
@@ -118,6 +118,38 @@ In **SNOWMAN**, you control an alpine snowboarder descending down an endless pro
   - Explosive upward powder poof at jump takeoff and kicker launches.
   - Radial snow spray fan upon clean touchdowns proportional to impact velocity.
 
+### Phase 5: Scoring, High Score & Persistent Progress
+
+- **Complete Run Statistics**:
+  - Tracks 9 metrics per run: distance, score, coins, max speed, air time, checkpoints reached, tricks landed, + all-time totals.
+  - All values displayed on the **enhanced Game Over / Results screen** after every crash.
+- **High Score Comparison & Record Badges**:
+  - 🏆 **NEW HIGH SCORE** (cyan animated badge) — displayed when the current run beats the all-time high score.
+  - 🏅 **NEW DISTANCE RECORD** (gold animated badge) — shown when a new longest distance is set (shown only when score record is not also beaten).
+  - Score and distance records are tracked and stored independently.
+- **Duplicate-Reward Prevention**:
+  - A `_rewardApplied` guard in `UIManager` ensures coins and the run counter are credited to the permanent bank **exactly once** per run, no matter how many times the results screen is displayed.
+  - The guard is safely cleared by `showPlaying()` when a new run begins.
+- **LocalStorage Persistence** — Six keys persist progress across browser sessions:
+
+  | Key | Type | Description |
+  |-----|------|-------------|
+  | `snowman_best_score` | integer | All-time highest run score (pts) |
+  | `snowman_best_dist` | integer | Longest run distance ever (m) |
+  | `snowman_total_coins` | integer | All-time coin bank |
+  | `snowman_total_runs` | integer | Total completed runs |
+  | `snowman_muted` | string | Audio mute preference (`'true'`/`'false'`) |
+  | `snowman_quality` | string | Graphics quality preference (`'low'`/`'medium'`/`'high'`) |
+
+- **Main Menu Records Panel** — shows Best Score, Best Distance, Total Coins, and **Total Runs** loaded from `localStorage` on startup.
+- **Enhanced Results Screen**:
+  - **3 × 3 stats grid**: Distance, Final Score, Coins This Run, Max Speed, Air Time, Total Coin Bank, Checkpoints Reached, Tricks Landed, and All-Time High Score.
+  - Total Runs completed footer bar beneath the grid.
+  - Action buttons: **PLAY AGAIN**, **MAIN MENU**, **RESPAWN AT CHECKPOINT** (when available).
+- **Safe Restart Behaviour**:
+  - `startRun()` only resets run-local variables. All saved progress (high score, coin bank, total runs, best distance) is preserved in `localStorage` and `UIManager` memory.
+  - Restarting mid-run or via the pause screen never double-counts coins or runs.
+
 ---
 
 ## Controls
@@ -214,9 +246,20 @@ The game runs locally with standard static web hosting and zero build steps.
 4. **Coins**: Steer through lines and rainbow arcs of gold coins to confirm +10 coin counter increments and sparkle effects.
 5. **Jumping**: Hit a snow kicker ramp with `Space` and observe the airtime reward upon landing.
 6. **Collision**: Deliberately ride into a pine tree, rock, fallen log, ice block, or snowman to test the wipeout ragdoll, snow blast explosion, and game-over telemetry.
-7. **Pause & Restart**: Press `P` to pause and `R` or `Try Again` to restart smoothly.
+7. **Pause & Restart**: Press `P` to pause and `R` or `Play Again` to restart smoothly.
+
+### Phase 5 Persistence Tests
+
+8. **Results Screen**: After crashing, verify the Game Over screen shows all 9 stat boxes (Distance, Score, Coins, Speed, Air Time, Total Bank, Checkpoints, Tricks, High Score) and the Total Runs footer.
+9. **High Score Badge**: On your second crash with a higher score, confirm the 🏆 **NEW HIGH SCORE** cyan badge appears. On a lower-scoring run, confirm it's absent.
+10. **Distance Record Badge**: Achieve a new distance without beating the score — confirm the 🏅 **NEW DISTANCE RECORD** gold badge appears.
+11. **Duplicate-Reward Prevention**: Crash, note the Total Coins and Total Runs values. Press PLAY AGAIN and crash immediately. Verify Total Runs incremented by exactly 1, and only coins from the second run were added to the bank.
+12. **LocalStorage Persistence**: After crashing and seeing records update, **refresh the browser tab** without closing. Verify the main menu immediately shows the correct saved best score, best distance, total coins, and total runs.
+13. **Restart Preserves Progress**: From the pause screen, press RESTART RUN. Verify that on the *next* crash, the previous all-time records are still present and the run counter increases by 1.
+14. **Browser DevTools Check**: Open DevTools > Application > Local Storage > `localhost` and confirm all six `snowman_*` keys are present with correct values.
 
 ---
+
 
 ## Development Roadmap
 
@@ -224,7 +267,7 @@ The game runs locally with standard static web hosting and zero build steps.
 - [x] **Phase 2**: Obstacle systems (trees, rocks, fallen logs, ice blocks, snowmen), fair path carving, distance difficulty curve, 3D rotating gold coins, collection patterns, and coin counters.
 - [x] **Phase 3**: Checkpoint system, glowing gates, respawn protection shield, and nitro boost mechanics.
 - [x] **Phase 4**: Expanded trick system (180°–1080° rotations, Method/Indy grabs), trick combos, landing alignment checks, and failed landing wipeouts.
-- [ ] **Phase 5**: Advanced persistent progression, cosmetics shop, character customization, and detailed statistics.
+- [x] **Phase 5**: Complete scoring, high score & persistent progress system (see [Phase 5 feature section](#phase-5-scoring-high-score--persistent-progress)).
 - [ ] **Phase 6**: On-screen virtual joystick / touch controls for mobile and tablet devices, advanced audio settings.
 - [ ] **Phase 7**: Final optimization, performance tuning, and polish.
 

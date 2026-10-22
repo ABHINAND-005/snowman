@@ -1,7 +1,15 @@
 /**
  * UI Manager for SNOWMAN
  * Controls Heads-Up Display (HUD), Main Menu, How To Play Modal, Pause Overlay,
- * Game Over Screen, High Score & Coin Bank persistence, and notification toasts.
+ * Game Over / Results Screen, High Score & Coin Bank persistence, and notification toasts.
+ *
+ * Phase 5 additions:
+ *  - Full LocalStorage persistence: high score, total coins, longest distance,
+ *    total runs, sound settings, graphics quality.
+ *  - Per-run tracking: checkpoints reached, tricks completed.
+ *  - Duplicate-reward prevention via a rewardApplied flag.
+ *  - "NEW HIGH SCORE" badge (separate from distance record).
+ *  - Enhanced results screen showing all tracked metrics.
  */
 
 export class UIManager {
@@ -51,6 +59,8 @@ export class UIManager {
     this.menuBestDistance = document.getElementById('menu-best-distance');
     this.menuBestScore = document.getElementById('menu-best-score');
     this.menuTotalCoins = document.getElementById('menu-total-coins');
+    this.menuTotalRuns = document.getElementById('menu-total-runs');
+    this.menuLongestDistance = document.getElementById('menu-longest-distance');
 
     // Pause elements
     this.pauseDistance = document.getElementById('pause-distance');
@@ -64,14 +74,36 @@ export class UIManager {
     this.goSpeed = document.getElementById('go-speed');
     this.goAirtime = document.getElementById('go-airtime');
     this.goTotalCoins = document.getElementById('go-total-coins');
+    this.goHighScore = document.getElementById('go-high-score');
+    this.goCheckpoints = document.getElementById('go-checkpoints');
+    this.goTricks = document.getElementById('go-tricks');
+    this.goTotalRuns = document.getElementById('go-total-runs');
     this.newRecordBadge = document.getElementById('new-record-badge');
+    this.newHighScoreBadge = document.getElementById('new-high-score-badge');
     this.gameoverCause = document.getElementById('gameover-cause');
 
-    // Load High Scores & Coin Bank from LocalStorage
+    // -------------------------------------------------------------------------
+    // Phase 5: Full Persistent Progress — LocalStorage Keys
+    // -------------------------------------------------------------------------
+    // snowman_best_dist    — longest distance in one run (metres)
+    // snowman_best_score   — highest score in one run (points)
+    // snowman_total_coins  — all-time coin bank
+    // snowman_total_runs   — total completed runs
+    // snowman_muted        — audio muted state (also written by SoundEngine)
+    // snowman_quality      — graphics quality: 'low' | 'medium' | 'high'
+
     this.bestDistance = 0;
     this.bestScore = 0;
     this.totalCoins = 0;
-    this.loadHighScores();
+    this.totalRuns = 0;
+    this.graphicsQuality = 'high';
+
+    // Guard flag: prevents coins / run-count being credited more than once per
+    // run result screen display, even if showGameOver() is somehow called again.
+    this._rewardApplied = false;
+
+    // Load all saved values from LocalStorage
+    this.loadPersistentProgress();
 
     // Setup Audio Icon
     this.updateAudioIcon(this.sound.isMuted);
@@ -100,44 +132,90 @@ export class UIManager {
     });
   }
 
+  // ===========================================================================
+  // PERSISTENT PROGRESS — LocalStorage Load & Save
+  // ===========================================================================
+
   /**
-   * Loads persistent records and coin bank from LocalStorage
+   * Loads all persistent records from LocalStorage.
+   * Gracefully falls back to zero if storage is unavailable or values are
+   * corrupt/missing.
    */
-  loadHighScores() {
+  loadPersistentProgress() {
     try {
-      this.bestDistance = parseInt(localStorage.getItem('snowman_best_dist') || '0', 10);
-      this.bestScore = parseInt(localStorage.getItem('snowman_best_score') || '0', 10);
-      this.totalCoins = parseInt(localStorage.getItem('snowman_total_coins') || '0', 10);
+      this.bestDistance = parseInt(localStorage.getItem('snowman_best_dist') || '0', 10) || 0;
+      this.bestScore    = parseInt(localStorage.getItem('snowman_best_score') || '0', 10) || 0;
+      this.totalCoins   = parseInt(localStorage.getItem('snowman_total_coins') || '0', 10) || 0;
+      this.totalRuns    = parseInt(localStorage.getItem('snowman_total_runs') || '0', 10) || 0;
+      this.graphicsQuality = localStorage.getItem('snowman_quality') || 'high';
     } catch {
       this.bestDistance = 0;
       this.bestScore = 0;
       this.totalCoins = 0;
+      this.totalRuns = 0;
+      this.graphicsQuality = 'high';
     }
     this.updateMenuRecords();
   }
 
   /**
-   * Updates Main Menu record pills
+   * Writes all persistent records to LocalStorage.
+   * Called once per run, after computing final stats.
    */
-  updateMenuRecords() {
-    if (this.menuBestDistance) this.menuBestDistance.textContent = `${this.bestDistance.toLocaleString()} m`;
-    if (this.menuBestScore) this.menuBestScore.textContent = `${this.bestScore.toLocaleString()} pts`;
-    if (this.menuTotalCoins) this.menuTotalCoins.textContent = `🪙 ${this.totalCoins.toLocaleString()}`;
+  savePersistentProgress() {
+    try {
+      localStorage.setItem('snowman_best_dist',   this.bestDistance.toString());
+      localStorage.setItem('snowman_best_score',  this.bestScore.toString());
+      localStorage.setItem('snowman_total_coins', this.totalCoins.toString());
+      localStorage.setItem('snowman_total_runs',  this.totalRuns.toString());
+      localStorage.setItem('snowman_quality',     this.graphicsQuality);
+    } catch {
+      // localStorage unavailable (private browsing, quota exceeded, etc.)
+    }
   }
 
   /**
-   * Trigger pulse visual animation on coin card when collecting coins
+   * Saves the graphics quality preference.
+   * @param {'low'|'medium'|'high'} quality
+   */
+  saveGraphicsQuality(quality) {
+    this.graphicsQuality = quality;
+    try {
+      localStorage.setItem('snowman_quality', quality);
+    } catch { /* ignore */ }
+  }
+
+  // ===========================================================================
+  // MENU RECORDS
+  // ===========================================================================
+
+  /**
+   * Refreshes the Main Menu record pills with the latest saved values.
+   */
+  updateMenuRecords() {
+    if (this.menuBestDistance)    this.menuBestDistance.textContent   = `${this.bestDistance.toLocaleString()} m`;
+    if (this.menuBestScore)       this.menuBestScore.textContent      = `${this.bestScore.toLocaleString()} pts`;
+    if (this.menuTotalCoins)      this.menuTotalCoins.textContent     = `🪙 ${this.totalCoins.toLocaleString()}`;
+    if (this.menuTotalRuns)       this.menuTotalRuns.textContent      = `${this.totalRuns.toLocaleString()}`;
+    if (this.menuLongestDistance) this.menuLongestDistance.textContent = `${this.bestDistance.toLocaleString()} m`;
+  }
+
+  // ===========================================================================
+  // HUD HELPERS
+  // ===========================================================================
+
+  /**
+   * Trigger pulse visual animation on coin card when collecting coins.
    */
   pulseCoinCard() {
     if (!this.coinCard) return;
     this.coinCard.classList.remove('pulse');
-    // Force reflow
-    void this.coinCard.offsetWidth;
+    void this.coinCard.offsetWidth; // Force reflow
     this.coinCard.classList.add('pulse');
   }
 
   /**
-   * Shows an animated floating toast message in the HUD
+   * Shows an animated floating toast message in the HUD.
    */
   showToast(text) {
     if (!this.toastContainer) return;
@@ -152,7 +230,7 @@ export class UIManager {
   }
 
   /**
-   * Shows an animated aerial trick banner with points reward
+   * Shows an animated aerial trick banner with points reward.
    */
   showTrickBanner(trickName, points) {
     if (!this.toastContainer) return;
@@ -167,21 +245,19 @@ export class UIManager {
   }
 
   /**
-   * Updates HUD telemetry during active gameplay
+   * Updates HUD telemetry during active gameplay.
    */
   updateHUD(distance, score, speedKmH, isTucking, coins = 0) {
     if (this.hudDistance) this.hudDistance.textContent = Math.floor(distance).toLocaleString();
-    if (this.hudScore) this.hudScore.textContent = Math.floor(score).toLocaleString();
-    if (this.hudCoins) this.hudCoins.textContent = coins.toLocaleString();
-    if (this.hudSpeed) this.hudSpeed.textContent = speedKmH;
+    if (this.hudScore)    this.hudScore.textContent    = Math.floor(score).toLocaleString();
+    if (this.hudCoins)    this.hudCoins.textContent    = coins.toLocaleString();
+    if (this.hudSpeed)    this.hudSpeed.textContent    = speedKmH;
 
-    // Speed bar fill (0 to 110 km/h)
     if (this.speedBarFill) {
       const pct = Math.min((speedKmH / 105) * 100, 100);
       this.speedBarFill.style.width = `${pct}%`;
     }
 
-    // Aerodynamic tuck badge
     if (this.tuckBadge) {
       if (isTucking && speedKmH > 25) {
         this.tuckBadge.classList.remove('hidden');
@@ -192,15 +268,13 @@ export class UIManager {
   }
 
   /**
-   * Updates Nitro Boost HUD meter and timer
+   * Updates Nitro Boost HUD meter and timer.
    */
   updateNitro(isNitro, timeLeft, maxDuration = 4.0) {
     if (!this.nitroCard) return;
     if (isNitro && timeLeft > 0) {
       this.nitroCard.classList.remove('hidden');
-      if (this.nitroTimer) {
-        this.nitroTimer.textContent = `${timeLeft.toFixed(1)}s`;
-      }
+      if (this.nitroTimer) this.nitroTimer.textContent = `${timeLeft.toFixed(1)}s`;
       if (this.nitroBarFill) {
         const pct = Math.min(100, Math.max(0, (timeLeft / maxDuration) * 100));
         this.nitroBarFill.style.width = `${pct}%`;
@@ -211,7 +285,7 @@ export class UIManager {
   }
 
   /**
-   * Updates Respawn Shield badge
+   * Updates Respawn Shield badge.
    */
   updateShield(isInvulnerable) {
     if (!this.shieldBadge) return;
@@ -223,7 +297,7 @@ export class UIManager {
   }
 
   /**
-   * Toggles visibility of Checkpoint Respawn buttons on Pause & Game Over screens
+   * Toggles visibility of Checkpoint Respawn buttons on Pause & Game Over screens.
    */
   setCheckpointAvailable(available) {
     if (this.btnRestartCheckpoint) {
@@ -243,15 +317,13 @@ export class UIManager {
   }
 
   /**
-   * Updates real-time in-air trick telemetry (airtime, active spin, grab)
+   * Updates real-time in-air trick telemetry (airtime, active spin, grab).
    */
   updateAirTrickHUD(isGrounded, airTime, spinDeg, isGrabbing, grabType) {
     if (!this.trickMeter) return;
     if (!isGrounded && airTime > 0.12) {
       this.trickMeter.classList.remove('hidden');
-      if (this.trickAirStatus) {
-        this.trickAirStatus.textContent = `AIR ${airTime.toFixed(1)}s`;
-      }
+      if (this.trickAirStatus) this.trickAirStatus.textContent = `AIR ${airTime.toFixed(1)}s`;
       if (this.trickSpinTag) {
         if (spinDeg >= 90) {
           this.trickSpinTag.classList.remove('hidden');
@@ -273,8 +345,12 @@ export class UIManager {
     }
   }
 
+  // ===========================================================================
+  // SCREEN TRANSITIONS
+  // ===========================================================================
+
   /**
-   * Screen transition: Show Main Menu
+   * Screen transition: Show Main Menu.
    */
   showMenu() {
     this.menuOverlay.classList.remove('hidden');
@@ -289,7 +365,8 @@ export class UIManager {
   }
 
   /**
-   * Screen transition: Start / Resume Active Playing
+   * Screen transition: Start / Resume Active Playing.
+   * Also resets the per-run reward guard so the next crash credits rewards once.
    */
   showPlaying() {
     this.menuOverlay.classList.add('hidden');
@@ -297,17 +374,19 @@ export class UIManager {
     this.pauseOverlay.classList.add('hidden');
     this.gameoverOverlay.classList.add('hidden');
     this.howToPlayModal.classList.add('hidden');
+    // Reset duplicate-reward guard for the new / resumed run
+    this._rewardApplied = false;
   }
 
   /**
-   * Screen transition: Show Pause Overlay
+   * Screen transition: Show Pause Overlay.
    */
   showPause(distance, score, coins = 0, hasCheckpoint = false) {
     this.pauseOverlay.classList.remove('hidden');
     this.hud.classList.remove('hidden');
     if (this.pauseDistance) this.pauseDistance.textContent = `${Math.floor(distance).toLocaleString()} m`;
-    if (this.pauseScore) this.pauseScore.textContent = `${Math.floor(score).toLocaleString()} pts`;
-    if (this.pauseCoins) this.pauseCoins.textContent = `🪙 ${coins.toLocaleString()}`;
+    if (this.pauseScore)    this.pauseScore.textContent    = `${Math.floor(score).toLocaleString()} pts`;
+    if (this.pauseCoins)    this.pauseCoins.textContent    = `🪙 ${coins.toLocaleString()}`;
     if (this.btnRestartCheckpoint) {
       if (hasCheckpoint) {
         this.btnRestartCheckpoint.classList.remove('hidden');
@@ -318,33 +397,66 @@ export class UIManager {
   }
 
   /**
-   * Screen transition: Hide Pause Overlay
+   * Screen transition: Hide Pause Overlay.
    */
   hidePause() {
     this.pauseOverlay.classList.add('hidden');
   }
 
+  // ===========================================================================
+  // GAME OVER / RESULTS SCREEN  (Phase 5 Core Feature)
+  // ===========================================================================
+
   /**
-   * Screen transition: Show Game Over Screen
+   * Displays the full run-results screen after a crash.
+   *
+   * Phase 5 behaviour:
+   *  1. Calculate final statistics for the run.
+   *  2. Compare new score against stored high score.
+   *  3. Update high score ONLY if the new score is strictly higher.
+   *  4. Add current-run coins to the all-time bank EXACTLY ONCE per run
+   *     (guarded by `_rewardApplied`).
+   *  5. Increment total run count exactly once.
+   *  6. Display NEW HIGH SCORE badge if a score record is set.
+   *  7. Display NEW RECORD badge if a distance record is set (separate).
+   *  8. Persist all updated values to LocalStorage.
+   *
+   * @param {object} stats
+   *   @param {number} stats.distance        — metres travelled this run
+   *   @param {number} stats.score           — raw score this run
+   *   @param {number} stats.coins           — coins collected this run
+   *   @param {number} stats.maxSpeed        — peak speed (km/h)
+   *   @param {number} stats.airtime         — total air time (seconds)
+   *   @param {string} stats.cause           — crash cause description
+   *   @param {boolean} stats.hasCheckpoint  — whether a checkpoint was reached
+   *   @param {number} stats.checkpoints     — number of checkpoints passed
+   *   @param {number} stats.tricks          — number of tricks landed cleanly
    */
   showGameOver(stats) {
     this.gameoverOverlay.classList.remove('hidden');
     this.hud.classList.add('hidden');
 
-    const dist = Math.floor(stats.distance);
-    const score = Math.floor(stats.score);
-    const coins = stats.coins || 0;
-    const maxSpeed = stats.maxSpeed;
-    const airtime = stats.airtime.toFixed(1);
-    const cause = stats.cause ? `Wiped out by a ${stats.cause}` : 'Crashed into an obstacle';
+    // ── 1. Extract & format stats ────────────────────────────────────────────
+    const dist      = Math.floor(stats.distance || 0);
+    const score     = Math.floor(stats.score || 0);
+    const coins     = Math.floor(stats.coins || 0);
+    const maxSpeed  = Math.floor(stats.maxSpeed || 0);
+    const airtime   = typeof stats.airtime === 'number' ? stats.airtime.toFixed(1) : '0.0';
+    const checkpoints = stats.checkpoints || 0;
+    const tricks    = stats.tricks || 0;
+    const cause     = stats.cause ? `Wiped out by a ${stats.cause}` : 'Crashed into an obstacle';
 
-    if (this.goDistance) this.goDistance.textContent = dist.toLocaleString();
-    if (this.goScore) this.goScore.textContent = score.toLocaleString();
-    if (this.goCoins) this.goCoins.textContent = coins.toLocaleString();
-    if (this.goSpeed) this.goSpeed.textContent = maxSpeed;
-    if (this.goAirtime) this.goAirtime.textContent = airtime;
+    // ── 2. Populate result boxes ─────────────────────────────────────────────
+    if (this.goDistance)  this.goDistance.textContent  = dist.toLocaleString();
+    if (this.goScore)     this.goScore.textContent     = score.toLocaleString();
+    if (this.goCoins)     this.goCoins.textContent     = coins.toLocaleString();
+    if (this.goSpeed)     this.goSpeed.textContent     = maxSpeed;
+    if (this.goAirtime)   this.goAirtime.textContent   = airtime;
+    if (this.goCheckpoints) this.goCheckpoints.textContent = checkpoints;
+    if (this.goTricks)    this.goTricks.textContent    = tricks;
     if (this.gameoverCause) this.gameoverCause.textContent = cause;
 
+    // Checkpoint respawn button
     if (this.btnCheckpointRespawn) {
       if (stats.hasCheckpoint) {
         this.btnCheckpointRespawn.classList.remove('hidden');
@@ -353,54 +465,88 @@ export class UIManager {
       }
     }
 
-    // Add collected coins to total bank
-    this.totalCoins += coins;
-    if (this.goTotalCoins) this.goTotalCoins.textContent = `🪙 ${this.totalCoins.toLocaleString()}`;
+    // ── 3 & 4. Apply rewards exactly once per run ────────────────────────────
+    let isNewScoreRecord    = false;
+    let isNewDistanceRecord = false;
 
-    // Check if new personal record
-    let isNewRecord = false;
-    if (dist > this.bestDistance) {
-      this.bestDistance = dist;
-      isNewRecord = true;
-    }
-    if (score > this.bestScore) {
-      this.bestScore = score;
-      isNewRecord = true;
-    }
+    if (!this._rewardApplied) {
+      this._rewardApplied = true; // ← guard set FIRST to prevent re-entry
 
-    try {
-      if (isNewRecord) {
-        localStorage.setItem('snowman_best_dist', this.bestDistance.toString());
-        localStorage.setItem('snowman_best_score', this.bestScore.toString());
+      // Add coins to permanent bank (only once)
+      this.totalCoins += coins;
+
+      // Increment total runs counter
+      this.totalRuns += 1;
+
+      // Compare distance — update longest distance record if beaten
+      if (dist > this.bestDistance) {
+        this.bestDistance    = dist;
+        isNewDistanceRecord  = true;
       }
-      localStorage.setItem('snowman_total_coins', this.totalCoins.toString());
-    } catch {
-      // storage disabled
+
+      // Compare score — update high score ONLY if strictly higher
+      if (score > this.bestScore) {
+        this.bestScore     = score;
+        isNewScoreRecord   = true;
+      }
+
+      // Persist everything to LocalStorage
+      this.savePersistentProgress();
+    } else {
+      // If rewards were already applied (e.g. screen re-displayed),
+      // re-derive record flags from saved state without modifying anything.
+      isNewScoreRecord    = (score >= this.bestScore && score > 0);
+      isNewDistanceRecord = (dist  >= this.bestDistance && dist  > 0);
     }
 
-    if (isNewRecord) {
-      this.newRecordBadge.classList.remove('hidden');
-    } else {
-      this.newRecordBadge.classList.add('hidden');
+    // ── 5. Update result summary displays ───────────────────────────────────
+    if (this.goTotalCoins) this.goTotalCoins.textContent = `🪙 ${this.totalCoins.toLocaleString()}`;
+    if (this.goHighScore)  this.goHighScore.textContent  = this.bestScore.toLocaleString();
+    if (this.goTotalRuns)  this.goTotalRuns.textContent  = this.totalRuns.toLocaleString();
+
+    // ── 6. Show "NEW HIGH SCORE" badge (score record) ────────────────────────
+    if (this.newHighScoreBadge) {
+      if (isNewScoreRecord) {
+        this.newHighScoreBadge.classList.remove('hidden');
+      } else {
+        this.newHighScoreBadge.classList.add('hidden');
+      }
     }
+
+    // ── 7. Show "NEW PERSONAL RECORD" badge (distance record) ────────────────
+    if (this.newRecordBadge) {
+      if (isNewDistanceRecord && !isNewScoreRecord) {
+        // Only show distance record if NOT already showing score badge
+        this.newRecordBadge.classList.remove('hidden');
+      } else {
+        this.newRecordBadge.classList.add('hidden');
+      }
+    }
+
+    // Refresh menu records in the background so they are current next time
+    this.updateMenuRecords();
   }
 
-  /**
-   * Modal: Show How To Play
-   */
+  // ===========================================================================
+  // MODALS
+  // ===========================================================================
+
+  /** Modal: Show How To Play */
   showHowToPlay() {
     this.howToPlayModal.classList.remove('hidden');
   }
 
-  /**
-   * Modal: Hide How To Play
-   */
+  /** Modal: Hide How To Play */
   hideHowToPlay() {
     this.howToPlayModal.classList.add('hidden');
   }
 
+  // ===========================================================================
+  // AUDIO ICON
+  // ===========================================================================
+
   /**
-   * Updates audio icon display (sound on / sound off)
+   * Updates audio icon display (sound on / sound off).
    */
   updateAudioIcon(isMuted) {
     if (this.iconSoundOn && this.iconSoundOff) {

@@ -23,7 +23,7 @@ class Game {
   constructor() {
     this.state = GameState.MENU;
 
-    // Game Metrics & Scoring
+    // Game Metrics & Scoring (run-local, reset each run)
     this.distance = 0;
     this.score = 0;
     this.coins = 0;
@@ -32,6 +32,10 @@ class Game {
     this.maxSpeed = 0;
     this.scoreMultiplier = 1.0;
     this.latestCheckpoint = null;
+
+    // Phase 5: Per-run counters (reset each run, not persisted directly)
+    this.checkpointsReached = 0;  // gates passed this run
+    this.tricksCompleted    = 0;  // clean trick landings this run
 
     // Three.js Core Components
     this.canvas = document.getElementById('webgl-canvas');
@@ -186,6 +190,8 @@ class Game {
     });
     window.addEventListener('snowman_trick', (e) => {
       this.score += e.detail.score;
+      // Phase 5: count each clean trick landing
+      this.tricksCompleted++;
     });
     window.addEventListener('snowman_badlanding', (e) => {
       this.handleCrash(null, e.detail.cause || 'bad landing');
@@ -308,6 +314,8 @@ class Game {
    */
   startRun() {
     this.state = GameState.PLAYING;
+
+    // Reset run-local metrics (saved progress in ui.js is NOT touched here)
     this.distance = 0;
     this.score = 0;
     this.coins = 0;
@@ -316,6 +324,10 @@ class Game {
     this.maxSpeed = 0;
     this.cameraShake = 0;
     this.latestCheckpoint = null;
+
+    // Phase 5: reset per-run counters
+    this.checkpointsReached = 0;
+    this.tricksCompleted    = 0;
 
     // Reset terrain and player position to mountain summit
     this.terrain.reset();
@@ -328,7 +340,7 @@ class Game {
     this.ui.setCheckpointAvailable(false);
     this.ui.updateNitro(false, 0);
     this.ui.updateShield(false);
-    this.ui.showPlaying();
+    this.ui.showPlaying(); // also resets _rewardApplied guard in UIManager
   }
 
   /**
@@ -389,14 +401,17 @@ class Game {
     setTimeout(() => {
       if (this.state === GameState.PLAYING) {
         this.state = GameState.GAMEOVER;
+        // Phase 5: pass full stats including per-run counters
         this.ui.showGameOver({
-          distance: this.distance,
-          score: this.score,
-          coins: this.coins,
-          maxSpeed: this.maxSpeed,
-          airtime: this.player.totalAirTime,
+          distance:     this.distance,
+          score:        this.score,
+          coins:        this.coins,
+          maxSpeed:     this.maxSpeed,
+          airtime:      this.player.totalAirTime,
           cause,
-          hasCheckpoint: Boolean(this.latestCheckpoint)
+          hasCheckpoint: Boolean(this.latestCheckpoint),
+          checkpoints:  this.checkpointsReached,
+          tricks:       this.tricksCompleted
         });
       }
     }, 1100);
@@ -575,6 +590,8 @@ class Game {
         this.score += cpHit.points;
         this.sound.playCheckpoint();
         this.ui.setCheckpointAvailable(true);
+        // Phase 5: count the gate
+        this.checkpointsReached++;
         window.dispatchEvent(new CustomEvent('snowman_checkpoint', {
           detail: { bonus: cpHit.points }
         }));

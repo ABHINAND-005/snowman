@@ -802,7 +802,7 @@ kbd {
    Game Over Screen Specifics
    ========================================================================== */
 .gameover-panel {
-  max-width: 560px;
+  max-width: 620px;
 }
 
 .gameover-header {
@@ -839,6 +839,32 @@ kbd {
   margin-top: 4px;
 }
 
+/* Phase 5 — NEW HIGH SCORE badge (cyan/teal colour, distinct from gold distance badge) */
+.new-high-score-badge {
+  background: linear-gradient(90deg, #00f0ff, #0096c7);
+  color: #021a26;
+  font-family: var(--font-tech);
+  font-size: 1.05rem;
+  font-weight: 900;
+  padding: 8px 20px;
+  border-radius: 20px;
+  letter-spacing: 0.12em;
+  display: inline-block;
+  margin-bottom: 12px;
+  box-shadow: 0 0 28px rgba(0, 240, 255, 0.55);
+  animation: newHighScorePulse 0.85s ease-in-out infinite alternate;
+}
+
+@keyframes newHighScorePulse {
+  from { transform: scale(0.97); box-shadow: 0 0 16px rgba(0, 240, 255, 0.45); }
+  to   { transform: scale(1.03); box-shadow: 0 0 36px rgba(0, 240, 255, 0.85); }
+}
+
+.new-high-score-badge.hidden {
+  display: none;
+}
+
+/* Existing distance record badge — styled gold */
 .new-record-badge {
   background: linear-gradient(90deg, #ffd166, #ff9f1c);
   color: #0b132b;
@@ -849,7 +875,7 @@ kbd {
   border-radius: 20px;
   letter-spacing: 0.1em;
   display: inline-block;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   box-shadow: var(--shadow-glow-gold);
   animation: pulseGlow 1s infinite alternate;
 }
@@ -858,11 +884,49 @@ kbd {
   display: none;
 }
 
+/* Phase 5 — colour helpers for summary number cells */
+.cyan-text {
+  color: var(--glacier-cyan) !important;
+}
+
+.score-text {
+  color: #a78bfa !important; /* lavender purple for high-score distinction */
+}
+
+/* Phase 5 — Total runs footer bar below the summary grid */
+.go-runs-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 20px;
+  margin-bottom: 20px;
+}
+
+.go-runs-label {
+  font-family: var(--font-tech);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--glacier-light);
+  opacity: 0.75;
+}
+
+.go-runs-value {
+  font-family: var(--font-tech);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--glacier-cyan);
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
 }
 
 .summary-box {
