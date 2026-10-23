@@ -644,4 +644,112 @@ export class SoundEngine {
     if (this.slideGain) this.slideGain.gain.setTargetAtTime(0, t, 0.05);
     if (this.windGain) this.windGain.gain.setTargetAtTime(0, t, 0.05);
   }
+
+  // ===========================================================================
+  // PHASE 6: NEW AUDIO METHODS
+  // ===========================================================================
+
+  /**
+   * Countdown tick beep — pitched by number (3=high, 1=low).
+   * Used during the 3-2-1 countdown before a run.
+   * @param {number} n — countdown value (3, 2, or 1)
+   */
+  playCountdownBeep(n = 3) {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // Pitch mapping: 3→880Hz, 2→660Hz, 1→440Hz
+    const freqMap = { 3: 880, 2: 660, 1: 440 };
+    const freq = freqMap[n] || 440;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+
+    gain.gain.setValueAtTime(0.28, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.18);
+  }
+
+  /**
+   * "GO!" blast — bright ascending double-note for countdown completion.
+   */
+  playCountdownGo() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    const notes = [
+      [880, 0],
+      [1320, 0.08],
+      [1760, 0.18],
+    ];
+
+    notes.forEach(([freq, delay]) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + delay);
+      gain.gain.setValueAtTime(0.22, t + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.35);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(t + delay);
+      osc.stop(t + delay + 0.35);
+    });
+  }
+
+  /**
+   * New High Score Celebration — triumphant ascending arpeggio with shimmer.
+   * Plays on the Game Over screen when a new all-time high score is achieved.
+   */
+  playHighScoreCelebration() {
+    if (!this.initialized || !this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // Golden ascending arpeggio melody (C major pentatonic, spread over 1.4s)
+    const melody = [
+      [523.25, 0.00, 0.35],   // C5
+      [659.25, 0.12, 0.32],   // E5
+      [783.99, 0.24, 0.32],   // G5
+      [1046.50, 0.40, 0.45],  // C6
+      [1318.51, 0.56, 0.45],  // E6
+      [1567.98, 0.72, 0.55],  // G6
+      [2093.00, 0.92, 0.70],  // C7 — peak!
+    ];
+
+    melody.forEach(([freq, delay, dur]) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + delay);
+      gain.gain.setValueAtTime(0.22, t + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + delay + dur);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(t + delay);
+      osc.stop(t + delay + dur);
+    });
+
+    // Sub-bass swell chord underneath the melody
+    const chordFreqs = [130.81, 164.81, 196.00]; // C3, E3, G3
+    chordFreqs.forEach((freq) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.14, t + 0.3);
+      gain.gain.linearRampToValueAtTime(0, t + 1.8);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(t);
+      osc.stop(t + 1.8);
+    });
+  }
 }

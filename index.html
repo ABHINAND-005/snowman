@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  
+
   <!-- Three.js CDN Import Map -->
   <script type="importmap">
   {
@@ -26,10 +26,14 @@
     <canvas id="webgl-canvas"></canvas>
   </div>
 
-  <!-- In-Game Heads-Up Display (HUD) -->
+  <!-- =========================================================================
+       IN-GAME HEADS-UP DISPLAY (HUD)
+       Phase 6: Added high score sub-display, total coins, checkpoint badge
+       ========================================================================= -->
   <div id="hud" class="hud-layer hidden">
     <!-- Top Stats Bar -->
     <div class="hud-top-bar">
+
       <!-- Distance Metric -->
       <div class="hud-card distance-card">
         <span class="hud-label">DISTANCE</span>
@@ -39,23 +43,24 @@
         </div>
       </div>
 
-      <!-- Score Metric -->
+      <!-- Score Metric + High Score sub-display (Phase 6) -->
       <div class="hud-card score-card">
         <span class="hud-label">SCORE</span>
         <div class="hud-value-row">
           <span id="hud-score" class="hud-number">0</span>
           <span class="hud-unit">PTS</span>
         </div>
+        <div class="hud-subtext">BEST <span id="hud-best-score">0</span></div>
       </div>
 
-      <!-- Coin Metric -->
+      <!-- Coin Metric + Total coins sub-display (Phase 6) -->
       <div class="hud-card coin-card">
         <span class="hud-label">COINS</span>
         <div class="hud-value-row">
           <span class="coin-icon">🪙</span>
           <span id="hud-coins" class="hud-number">0</span>
-          <span class="hud-unit gold-text">+10</span>
         </div>
+        <div class="hud-subtext">TOTAL <span id="hud-total-coins-display">0</span></div>
       </div>
 
       <!-- Speed Gauge -->
@@ -92,6 +97,11 @@
         <span>🛡️ RESPAWN SHIELD</span>
       </div>
 
+      <!-- Checkpoint Status Badge (Phase 6) -->
+      <div id="hud-checkpoint-badge" class="checkpoint-status-badge hidden">
+        <span>🏁 CHECKPOINT</span>
+      </div>
+
       <!-- Aerial Trick Real-Time Display -->
       <div id="hud-trick-meter" class="hud-trick-meter hidden">
         <span class="trick-air-icon">✈️</span>
@@ -100,7 +110,7 @@
         <span id="hud-trick-grab" class="trick-tag grab-tag hidden">METHOD</span>
       </div>
 
-      <!-- Controls / Audio Bar in Top Right -->
+      <!-- HUD Action Buttons (Audio Toggle + Pause) -->
       <div class="hud-actions">
         <button id="btn-audio-toggle" class="btn-icon" title="Toggle Sound" aria-label="Toggle Sound">
           <svg id="icon-sound-on" class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -122,13 +132,14 @@
       </div>
     </div>
 
-    <!-- Dynamic Notification Toasts (Airtime bonus, Gate clear, etc) -->
+    <!-- Dynamic Notification Toasts -->
     <div id="hud-toast-container" class="hud-toast-container"></div>
 
-    <!-- Quick Keys Footer Hint -->
+    <!-- Desktop Quick-Keys Footer Hint -->
     <div class="hud-footer-hint">
       <span><kbd>A</kbd><kbd>D</kbd> Carve</span>
-      <span><kbd>W</kbd> Tuck Boost</span>
+      <span><kbd>W</kbd> Tuck</span>
+      <span><kbd>SHIFT</kbd> Nitro</span>
       <span><kbd>SPACE</kbd> Jump</span>
       <span><kbd>Q</kbd><kbd>E</kbd> Spin</span>
       <span><kbd>S</kbd> Grab</span>
@@ -136,17 +147,56 @@
     </div>
   </div>
 
-  <!-- Main Menu Overlay -->
+  <!-- =========================================================================
+       PHASE 6: COUNTDOWN OVERLAY (3 → 2 → 1 → GO!)
+       ========================================================================= -->
+  <div id="countdown-overlay" class="countdown-overlay hidden">
+    <div id="countdown-number" class="countdown-number">3</div>
+  </div>
+
+  <!-- =========================================================================
+       PHASE 6: MOBILE TOUCH CONTROLS OVERLAY
+       Touch buttons mirror keyboard controls exactly.
+       ========================================================================= -->
+  <div id="mobile-controls" class="mobile-controls hidden" aria-label="Mobile touch controls">
+
+    <!-- Left Zone: Steer (large) + Spin (small above) -->
+    <div class="mc-zone mc-left-zone">
+      <div class="mc-spin-row">
+        <button id="mc-spin-left"  class="mc-btn mc-spin-btn" aria-label="Spin Left">↺</button>
+        <button id="mc-spin-right" class="mc-btn mc-spin-btn" aria-label="Spin Right">↻</button>
+      </div>
+      <div class="mc-steer-row">
+        <button id="mc-left"  class="mc-btn mc-steer-btn" aria-label="Steer Left">◀</button>
+        <button id="mc-right" class="mc-btn mc-steer-btn" aria-label="Steer Right">▶</button>
+      </div>
+    </div>
+
+    <!-- Right Zone: Jump (large) + secondary actions -->
+    <div class="mc-zone mc-right-zone">
+      <div class="mc-actions-col">
+        <button id="mc-grab"  class="mc-btn mc-action-btn" aria-label="Grab">GRAB</button>
+        <button id="mc-tuck"  class="mc-btn mc-action-btn" aria-label="Tuck Boost">TUCK</button>
+        <button id="mc-nitro" class="mc-btn mc-nitro-btn"  aria-label="Nitro / Tuck">⚡</button>
+      </div>
+      <button id="mc-jump" class="mc-btn mc-jump-btn" aria-label="Jump">JUMP</button>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MAIN MENU OVERLAY
+       Phase 6: Added Settings button
+       ========================================================================= -->
   <div id="menu-overlay" class="ui-screen active">
     <div class="menu-glass-panel">
-      <!-- Frost Crest Header -->
+      <!-- Brand Header -->
       <div class="brand-container">
         <div class="snowflake-badge">❄</div>
         <h1 class="game-title">SNOWMAN</h1>
         <p class="game-subtitle">ALPINE FREERIDE DOWNHILL</p>
       </div>
 
-      <!-- High Score Records Box -->
+      <!-- Persistent Records Pill -->
       <div class="records-pill">
         <div class="record-item">
           <span class="record-label">BEST DISTANCE</span>
@@ -169,7 +219,7 @@
         </div>
       </div>
 
-      <!-- Action Buttons -->
+      <!-- Main Action Buttons -->
       <div class="menu-actions">
         <button id="btn-play" class="btn btn-primary">
           <span class="btn-glow"></span>
@@ -179,15 +229,21 @@
         <button id="btn-how-to-play" class="btn btn-secondary">
           <span>HOW TO PLAY</span>
         </button>
+        <button id="btn-settings" class="btn btn-secondary">
+          <span>⚙ SETTINGS</span>
+        </button>
       </div>
 
       <div class="menu-footer">
-        <span>Use Arrow Keys or WASD • Space to Jump</span>
+        <span>Arrow Keys or WASD to Carve • Space to Jump • P to Pause</span>
       </div>
     </div>
   </div>
 
-  <!-- How to Play Modal Overlay -->
+  <!-- =========================================================================
+       HOW TO PLAY MODAL
+       Phase 6: Added R key + mobile tips
+       ========================================================================= -->
   <div id="how-to-play-modal" class="modal-backdrop hidden">
     <div class="modal-card">
       <div class="modal-header">
@@ -197,53 +253,47 @@
       <div class="modal-body">
         <div class="guide-grid">
           <div class="guide-card">
-            <div class="guide-keys">
-              <kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd>
-            </div>
-            <h3>Steer & Carve</h3>
-            <p>Carve left and right down the slope. Keep your balance and swerve around pine trees and jagged boulders.</p>
+            <div class="guide-keys"><kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd></div>
+            <h3>Steer &amp; Carve</h3>
+            <p>Carve left and right down the slope. Swerve around pine trees and jagged boulders.</p>
           </div>
           <div class="guide-card">
-            <div class="guide-keys">
-              <kbd>W</kbd> or <kbd>↑</kbd>
-            </div>
+            <div class="guide-keys"><kbd>W</kbd> or <kbd>↑</kbd> or <kbd>Shift</kbd></div>
             <h3>Aerodynamic Tuck</h3>
-            <p>Crouch down low into a speed tuck to minimize drag, reach blazing speeds, and earn speed multiplier points.</p>
+            <p>Crouch low to minimize drag, reach blazing speeds, and earn speed multiplier points.</p>
           </div>
           <div class="guide-card">
-            <div class="guide-keys">
-              <kbd>SPACE</kbd>
-            </div>
+            <div class="guide-keys"><kbd>SPACE</kbd></div>
             <h3>Ollie / Jump</h3>
-            <p>Launch off the snow or kicker ramps into the air. Land cleanly to score massive air-time bonus points!</p>
+            <p>Launch off snow or kicker ramps. Land cleanly to score massive air-time bonus points!</p>
           </div>
           <div class="guide-card">
-            <div class="guide-keys">
-              <kbd>Q</kbd> <kbd>E</kbd>
-            </div>
+            <div class="guide-keys"><kbd>Q</kbd> <kbd>E</kbd></div>
             <h3>Air Spins</h3>
-            <p>Hold Q or E in the air to spin 180°, 360°, 540°, or 720°. Time your rotation to land facing forward or switch!</p>
+            <p>Hold Q or E in the air to spin 180°–720°. Land facing forward or switch for points!</p>
           </div>
           <div class="guide-card">
-            <div class="guide-keys">
-              <kbd>S</kbd>
-            </div>
+            <div class="guide-keys"><kbd>S</kbd></div>
             <h3>Board Grabs</h3>
-            <p>Hold S in mid-air for stylish Method and Indy grabs. Hold longer for bigger points, but release before touching down!</p>
+            <p>Hold S mid-air for Method and Indy grabs. Release before landing to avoid a wipeout!</p>
+          </div>
+          <div class="guide-card">
+            <div class="guide-keys"><kbd>R</kbd> &nbsp; <kbd>P</kbd> / <kbd>Esc</kbd></div>
+            <h3>Restart &amp; Pause</h3>
+            <p>R restarts or respawns at your last checkpoint. P or Esc pauses the game at any time.</p>
           </div>
         </div>
 
         <div class="guide-tips">
           <h4>PRO TIPS</h4>
           <ul>
-            <li>✨ <strong>Trick Combos:</strong> Combine a 360° spin with an S grab for a 1.5x mega trick multiplier!</li>
-            <li>⚠️ <strong>Landing Alignment:</strong> Land facing straight or switch. Landing sideways or holding a grab causes an edge-catch wipeout!</li>
+            <li>✨ <strong>Trick Combos:</strong> Combine a 360° spin with an S grab for a 1.5× mega trick multiplier!</li>
+            <li>⚠️ <strong>Landing Alignment:</strong> Land facing straight or switch. Sideways landings cause edge-catch wipeouts!</li>
             <li>🏁 <strong>Checkpoints:</strong> Pass glowing blue gates for +250 pts and a safe respawn anchor.</li>
             <li>⚡ <strong>Nitro Boost:</strong> Grab glowing cyan canisters for a 4-second supersonic speed rush!</li>
-            <li>🪙 <strong>Gold Coins:</strong> Gather glowing coin lines & arcs for +10 coins and +50 points each.</li>
+            <li>🪙 <strong>Gold Coins:</strong> Gather glowing coin lines &amp; arcs for +10 coins and +50 points each.</li>
             <li>🎯 <strong>Slalom Gates:</strong> Pass between red and blue flags for +500 bonus points each.</li>
-            <li>🚀 <strong>Snow Kickers:</strong> Hit natural snow ramps at high speed for enormous jump air-time.</li>
-            <li>🌲 <strong>Danger Ahead:</strong> Watch out for pine trees, boulders, fallen logs, ice blocks, and snowmen!</li>
+            <li>📱 <strong>Mobile:</strong> Use the on-screen touch buttons at the bottom to steer, jump, grab &amp; spin!</li>
           </ul>
         </div>
       </div>
@@ -253,7 +303,62 @@
     </div>
   </div>
 
-  <!-- Pause Screen Overlay -->
+  <!-- =========================================================================
+       PHASE 6: SETTINGS MODAL
+       Controls: Sound mute toggle + Graphics quality selector
+       ========================================================================= -->
+  <div id="settings-modal" class="modal-backdrop hidden">
+    <div class="modal-card settings-card">
+      <div class="modal-header">
+        <h2>⚙ SETTINGS</h2>
+        <button id="btn-close-settings" class="btn-close" aria-label="Close settings">&times;</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Audio Section -->
+        <div class="settings-section">
+          <h3 class="settings-section-title">AUDIO</h3>
+          <div class="settings-row">
+            <span class="settings-label">Sound Effects</span>
+            <button id="setting-mute-toggle" class="setting-toggle active" aria-pressed="false">ON</button>
+          </div>
+        </div>
+
+        <!-- Graphics Section -->
+        <div class="settings-section">
+          <h3 class="settings-section-title">GRAPHICS QUALITY</h3>
+          <div class="settings-quality-row">
+            <button class="setting-quality-btn" data-quality="low">LOW</button>
+            <button class="setting-quality-btn" data-quality="medium">MEDIUM</button>
+            <button class="setting-quality-btn active" data-quality="high">HIGH</button>
+          </div>
+          <p class="settings-hint">Lower quality improves frame rate on slower devices.</p>
+        </div>
+
+        <!-- Controls Reference -->
+        <div class="settings-section">
+          <h3 class="settings-section-title">KEYBOARD CONTROLS</h3>
+          <div class="settings-controls-grid">
+            <span class="sc-key">A / D  ·  ← / →</span><span class="sc-action">Steer &amp; Carve</span>
+            <span class="sc-key">W  ·  ↑  ·  Shift</span><span class="sc-action">Tuck / Speed Boost</span>
+            <span class="sc-key">SPACE</span><span class="sc-action">Jump / Ollie</span>
+            <span class="sc-key">Q  ·  E</span><span class="sc-action">Air Spin ←→</span>
+            <span class="sc-key">S  ·  ↓</span><span class="sc-action">Board Grab</span>
+            <span class="sc-key">R</span><span class="sc-action">Restart / Respawn</span>
+            <span class="sc-key">P  ·  Esc</span><span class="sc-action">Pause / Resume</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-settings-done" class="btn btn-primary">SAVE &amp; CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       PAUSE SCREEN OVERLAY
+       Phase 6: Added Settings button in pause
+       ========================================================================= -->
   <div id="pause-overlay" class="ui-screen hidden">
     <div class="menu-glass-panel">
       <div class="brand-container">
@@ -287,6 +392,12 @@
         <button id="btn-restart-pause" class="btn btn-secondary">
           <span>RESTART RUN</span>
         </button>
+        <button id="btn-settings-pause" class="btn btn-secondary">
+          <span>⚙ SETTINGS</span>
+        </button>
+        <button id="btn-menu-from-pause" class="btn btn-secondary">
+          <span>MAIN MENU</span>
+        </button>
       </div>
 
       <div class="menu-footer">
@@ -295,27 +406,28 @@
     </div>
   </div>
 
-  <!-- Game Over Screen Overlay -->
+  <!-- =========================================================================
+       GAME OVER / RESULTS SCREEN
+       (unchanged from Phase 5 — all 9 stat boxes retained)
+       ========================================================================= -->
   <div id="gameover-overlay" class="ui-screen hidden">
     <div class="menu-glass-panel gameover-panel">
-      <!-- Crash Icon / Banner -->
+      <!-- Crash Banner -->
       <div class="gameover-header">
         <div class="gameover-icon">💥</div>
         <h2 class="gameover-title">WIPEOUT!</h2>
         <p id="gameover-cause" class="gameover-subtitle">Crashed into an obstacle</p>
       </div>
 
-      <!-- NEW HIGH SCORE Badge (score record) -->
+      <!-- Record Badges -->
       <div id="new-high-score-badge" class="new-high-score-badge hidden">
         <span>🏆 NEW HIGH SCORE!</span>
       </div>
-
-      <!-- New Distance Record Alert Badge (distance record without score record) -->
       <div id="new-record-badge" class="new-record-badge hidden">
         <span>🏅 NEW DISTANCE RECORD!</span>
       </div>
 
-      <!-- Run Summary Stats Grid -->
+      <!-- 3×3 Run Summary Stats Grid -->
       <div class="summary-grid">
         <div class="summary-box">
           <span class="summary-label">DISTANCE</span>

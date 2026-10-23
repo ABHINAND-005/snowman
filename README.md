@@ -150,6 +150,21 @@ In **SNOWMAN**, you control an alpine snowboarder descending down an endless pro
   - `startRun()` only resets run-local variables. All saved progress (high score, coin bank, total runs, best distance) is preserved in `localStorage` and `UIManager` memory.
   - Restarting mid-run or via the pause screen never double-counts coins or runs.
 
+### Phase 6: Interface, Audio & Mobile Controls
+
+- **Complete game flow** — main menu with records, ready countdown, in-run HUD, pause/resume, restart, checkpoint respawn, wipeout and results screens, and return-to-menu navigation.
+- **Live HUD** — distance, score, high score, speed, current-run and total coins, tuck status, nitro timer/meter, checkpoint status, respawn shield, and aerial trick telemetry.
+- **Audio and preferences** — procedural wind and snow-slide loops plus jump, landing, collision, coin, checkpoint, nitro, trick, UI, countdown, and new-record sounds. Mute and graphics quality preferences persist in `localStorage`.
+- **Desktop controls** — A/D or arrows steer, W/up or Shift tucks, Space jumps, Q/E spin, S/down grabs, R restarts or respawns, and P/Escape pauses.
+- **Touch controls** — steering, jump, tuck, grab and spins are exposed as large touch buttons on touch or small-screen devices. Pointer capture releases controls reliably when a touch ends outside its button, and concurrent inputs remain active until all sources release them. Nitro activates automatically when collected.
+- **Responsive layout** — compact HUD, touch control sizing, scrollable results/settings and landscape adjustments for small screens.
+
+#### Phase 6 verification
+
+- `node --check js/game.js`, `node --check js/ui.js`, and `node --check js/audio.js` passed.
+- Static review confirmed handlers and state transitions for menu, settings, pause/resume, restart, checkpoint respawn, mute, quality selection, HUD updates, coin/checkpoint/nitro/trick scoring, and touch inputs.
+- A local HTTP server started. Interactive browser verification could not be completed in this environment: Firefox headless failed to launch its tab subprocess, and the Python launcher was inaccessible. Keyboard/touch interaction, Web Audio playback, responsive rendering, and console behavior therefore remain to be manually verified in a regular browser.
+
 ---
 
 ## Controls
@@ -164,7 +179,7 @@ In **SNOWMAN**, you control an alpine snowboarder descending down an endless pro
 | <kbd>P</kbd> or <kbd>Esc</kbd> | Pause / Resume Game |
 | <kbd>R</kbd> | Quick Respawn / Restart Run |
 
-*Note: Dedicated touch and tilt mobile controls will be expanded in Phase 6.*
+*Nitro activates automatically when a canister is collected; Shift is mapped to tuck because there is no stored-nitro activation mechanic.*
 
 ---
 
@@ -268,14 +283,14 @@ The game runs locally with standard static web hosting and zero build steps.
 - [x] **Phase 3**: Checkpoint system, glowing gates, respawn protection shield, and nitro boost mechanics.
 - [x] **Phase 4**: Expanded trick system (180°–1080° rotations, Method/Indy grabs), trick combos, landing alignment checks, and failed landing wipeouts.
 - [x] **Phase 5**: Complete scoring, high score & persistent progress system (see [Phase 5 feature section](#phase-5-scoring-high-score--persistent-progress)).
-- [ ] **Phase 6**: On-screen virtual joystick / touch controls for mobile and tablet devices, advanced audio settings.
+- [x] **Phase 6**: Responsive UI, complete HUD and game screens, procedural audio and mute settings, graphics quality persistence, and mobile touch controls (see [Phase 6 feature section](#phase-6-interface-audio--mobile-controls)).
 - [ ] **Phase 7**: Final optimization, performance tuning, and polish.
 
 ---
 
 ## Known Limitations
 
-- Mobile on-screen touch overlay buttons are scheduled for Phase 6 (keyboard controls are recommended for current phases).
+- Interactive browser checks could not be run in the current development environment; use the Phase 6 verification notes above when validating in a regular browser.
 
 ---
 
